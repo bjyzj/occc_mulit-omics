@@ -1,3 +1,9 @@
 # Ignore all Excel files
 *.xlsx
 *.xls
+
+# macOS system file
+.DS_Store
+
+# R history file
+.Rhistory
