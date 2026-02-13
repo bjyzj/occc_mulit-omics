@@ -1,2 +1,2 @@
-# occc_mulit-omics
+# occc_multi-omics
 updated repo of occc 
