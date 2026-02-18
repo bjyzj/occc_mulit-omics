@@ -338,7 +338,7 @@ mRNA_genes <- annot %>% filter(gene_biotype == "protein_coding") %>% pull(hgnc_s
 # filter 
 tpm_ccRCC_mRNA <- tpm_ccRCC %>% filter(Geneid %in% mRNA_genes) 
 
-write.csv(tpm_ccRCC_mRNA, "/Users/beyzaerkal/Desktop/occc_repo/input_ccRCC/ccRCC_RNAseq_mRNA_TPM.csv", row.names = FALSE)
+write.csv(tpm_ccRCC_mRNA, "/Users/beyzaerkal/Desktop/internship/internship_env/input_ccRCC/ccRCC_RNAseq_mRNA_TPM.csv", row.names = FALSE)
 
 addWorksheet(wb, "TCGA-KIRC")
 writeData(wb, "TCGA-KIRC", tpm_ccRCC_mRNA)
