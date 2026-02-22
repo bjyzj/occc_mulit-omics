@@ -191,7 +191,82 @@ h2
 
 ##############################
 
+# heatmap 3 looking at the gene names in oc vs ovary
 
+DE_OCvsGTExOV$adj.P.Val <- pmax(DE_OCvsGTExOV$adj.P.Val, 1e-300)
+topN <- 30
+
+sig_up_occc <- DE_OCvsGTExOV %>% filter(adj.P.Val < 0.05 & logFC > 1) %>%
+  arrange(adj.P.Val) %>% slice_head(n = topN/2) %>% pull(Geneid)
+
+sig_up_ovary <- DE_OCvsGTExOV %>% filter(adj.P.Val < 0.05 & logFC < -1) %>%
+  arrange(adj.P.Val) %>% slice_head(n = topN/2) %>% pull(Geneid)
+
+sig_genes <- unique(c(sig_up_occc, sig_up_ovary))
+
+exprDE_occc <- expr_mat_ovary_only[sig_genes, , drop = FALSE]
+
+# scale rows 
+exprDE_scaled <- t(scale(t(exprDE_occc)))
+exprDE_scaled[exprDE_scaled > 3] <- 3
+exprDE_scaled[exprDE_scaled < -3] <- -3
+exprDE_scaled[!is.finite(exprDE_scaled)] <- 0
+
+
+# row annotation
+logFC_vec <- DE_OCvsGTExOV$logFC[match(rownames(exprDE_scaled), DE_OCvsGTExOV$Geneid)]
+annotation_row <- data.frame(Direction = ifelse(logFC_vec > 0, "Upregulated in OCCC", "Upregulated in Normal Ovary"),
+                             row.names = rownames(exprDE_scaled))
+
+# column annotation
+annotation_col <- sample_info_ovary_only[match(colnames(exprDE_scaled), sample_info_ovary_only$Sample),
+                                         c("Study", "SourceType"), drop = FALSE]
+rownames(annotation_col) <- colnames(exprDE_scaled)
+colnames(annotation_col) <- c("Study", "Source Type")
+
+# rename GTEx_Ovary to Normal Ovary
+annotation_col$Study <- as.character(annotation_col$Study)  # chr
+annotation_col$Study[annotation_col$Study == "GTEx_Ovary"] <- "Normal Ovary"
+annotation_col$Study <- factor(annotation_col$Study)         # factor
+
+ann_colors <- list(
+  Study = c(
+    "Bolton et al. (2022)" = "#1f77b4",
+    "Normal Ovary" = "#C4D8F3",
+    "Expression Atlas (2026)" = "#D54046",
+    "GSE160692" = "#9EB258",
+    "GSE189553" = "#2E7341",
+    "Nagasawa et al. (2019)" = "#D75F22"
+  ),
+  `Source Type` = c(
+    "Cell line" = "#E87687",
+    "Primary Tumour" = "#F5B35E"
+  )
+)
+
+
+ann_row_colors <- list(Direction = c("Upregulated in OCCC" = "#B81840","Upregulated in Normal Ovary" = "#377eb8"))
+
+dist_rows <- as.dist(1 - cor(t(exprDE_scaled), method = "spearman"))
+dist_cols <- as.dist(1 - cor(exprDE_scaled, method = "spearman"))
+
+heatmap_colors <- colorRampPalette(rev(brewer.pal(n = 11, name = "RdBu")))(100)
+
+h3 <- pheatmap(exprDE_scaled, 
+               scale = "none",
+               color = heatmap_colors, 
+               cluster_rows = TRUE,
+               cluster_cols = TRUE,  
+               clustering_distance_rows = dist_rows,
+               clustering_distance_cols = dist_cols,
+               clustering_method = "complete",  
+               annotation_col = annotation_col,
+               annotation_row = annotation_row,
+               annotation_colors = c(ann_colors, ann_row_colors),
+               show_rownames = TRUE,  
+               show_colnames = FALSE,
+               border_color = NA)
+h3
 
 
 
