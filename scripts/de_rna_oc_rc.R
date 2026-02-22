@@ -247,6 +247,8 @@ expr_mat <- cbind(
   renal_gtex_log
 )
 
+#saveRDS(expr_mat, file = "/Users/beyzaerkal/Desktop/occc_multi-omics/processed/expression_matrix_occc_renal.rds")
+
 ##############
 samples <- colnames(expr_mat)
 
@@ -263,16 +265,16 @@ study <- ifelse(samples %in% ea_samples, "Expression Atlas (2026)",
                        ifelse(grepl("^CCC_", samples), "GSE189553",
                               ifelse(grepl("^OVA[0-9]+", samples), "GSE160692",
                                      ifelse(grepl("IGO_07456", samples), "Bolton et al. (2022)",
-                                            ifelse(samples %in% ccrcc_samples, "ccRCC",
+                                            ifelse(samples %in% ccrcc_samples, "TCGA-KIRC",
                                                    ifelse(samples %in% ovary_samples, "GTEx_Ovary",
-                                                          ifelse(samples %in% renal_samples, "GTEx_Kidney", NA))))))))
+                                                          ifelse(samples %in% renal_samples, "GTEx_Renal_Cortex", NA))))))))
 
 # map tisseu form study
 tissue <- ifelse(study %in% c("Expression Atlas (2026)", "Nagasawa et al. (2019)",
                               "GSE189553", "GSE160692", "Bolton et al. (2022)", "GTEx_Ovary"), "Ovary",
-                 ifelse(study %in% c("ccRCC", "GTEx_Kidney"), "Kidney", NA))
+                 ifelse(study %in% c("TCGA-KIRC", "GTEx_Renal_Cortex"), "Kidney", NA))
 
-status <- ifelse(samples %in% ovary_samples | samples %in% renal_samples, "Normal", "Tumor")
+status <- ifelse(samples %in% ovary_samples | samples %in% renal_samples, "Normal", "Tumour")
 source_type <- ifelse(study == "Expression Atlas (2026)", "Cell line", "Primary Tumour")
 
 # metadata combined
@@ -283,6 +285,9 @@ sample_info <- data.frame(
   Status = factor(status),
   SourceType = factor(source_type)
 )
+
+#saveRDS(sample_info, file = "/Users/beyzaerkal/Desktop/occc_multi-omics/processed/sample_info_OCandRC.rds")
+
 rownames(sample_info) <- sample_info$Sample
 samples[duplicated(samples)] # col checks that have duplicates
 all(colnames(expr_mat) == rownames(sample_info)) 
@@ -292,10 +297,10 @@ group <- rep(NA, length(samples))
 names(group) <- samples
 group[samples %in% colnames(occc_log)] <- "OCCC"
 group[samples %in% colnames(ovary_gtex_log)] <- "GTEx_Ovary"
-group[samples %in% colnames(ccrcc_log)] <- "ccRCC"
-group[samples %in% colnames(renal_gtex_log)] <- "GTEx_Kidney"
+group[samples %in% colnames(ccrcc_log)] <- "TCGA-KIRC" # ccRCC
+group[samples %in% colnames(renal_gtex_log)] <- "GTEx_Renal_Cortex"
 
-sample_info$Group <- factor(group, levels = c("GTEx_Ovary", "OCCC", "GTEx_Kidney", "ccRCC"))
+sample_info$Group <- factor(group, levels = c("GTEx_Ovary", "OCCC", "GTEx_Renal_Cortex", "TCGA-KIRC"))
 
 table(sample_info$Group)
 table(sample_info$Tissue, sample_info$Status)
@@ -341,11 +346,11 @@ DE_OCCC_vs_ccRCC_ratio <- cbind(Geneid = rownames(DE_OCCC_vs_ccRCC_ratio), DE_OC
 rownames(DE_OCCC_vs_ccRCC_ratio) <- NULL
 
 # save DE results
-wb <- createWorkbook()
-addWorksheet(wb, "OCCC_vs_ccRCC_ratio")
-writeData(wb, "OCCC_vs_ccRCC_ratio", DE_OCCC_vs_ccRCC_ratio)
+#wb <- createWorkbook()
+#addWorksheet(wb, "OCCC_vs_ccRCC_ratio")
+#writeData(wb, "OCCC_vs_ccRCC_ratio", DE_OCCC_vs_ccRCC_ratio)
 
-write_csv(DE_OCCC_vs_ccRCC_ratio, file = "/Users/beyzaerkal/Desktop/occc_multi-omics/results/DE_results_OCCC_vs_ccRCC_ratio.csv")
+#write_csv(DE_OCCC_vs_ccRCC_ratio, file = "/Users/beyzaerkal/Desktop/occc_multi-omics/results/DE_results_OCCC_vs_ccRCC_ratio.csv")
 ####################################
 
 # Only OCCC and GTEx Ovary samples
@@ -368,16 +373,24 @@ group[samples_ovary %in% colnames(occc_log)] <- "OCCC"
 group[samples_ovary %in% colnames(ovary_gtex_log)] <- "GTEx_Ovary"
 
 
+source_type_ovary <- ifelse(samples_ovary %in% ea_samples,
+                            "Cell line",
+                            "Primary Tumour")
+
 # ovary and occc metadata only
 sample_info_ovary <- data.frame(
   Sample = samples_ovary,
   Study = factor(study),
-  Group = factor(group, levels = c("GTEx_Ovary", "OCCC"))
+  Group = factor(group, levels = c("GTEx_Ovary", "OCCC")),
+  SourceType = factor(source_type_ovary,
+                      levels = c("Primary Tumour", "Cell line"))
 )
 rownames(sample_info_ovary) <- sample_info_ovary$Sample
 
 all(colnames(expr_mat_ovary) == rownames(sample_info_ovary))
-
+# save
+#saveRDS(sample_info_ovary, file = "/Users/beyzaerkal/Desktop/occc_multi-omics/processed/sample_info_occc_ovary.rds")
+#saveRDS(expr_mat_ovary, file = "/Users/beyzaerkal/Desktop/occc_multi-omics/processed/expression_matrix_occc_ovary.rds")
 
 # model design : log2(OCCC / GTEx Ovary)
 design_ovary <- model.matrix(~0 + Group, data = sample_info_ovary)
@@ -397,12 +410,12 @@ DE_OCCC_vs_GTEx_Ovary_ratio <- cbind(Geneid = rownames(DE_OCCC_vs_GTEx_Ovary_rat
 rownames(DE_OCCC_vs_GTEx_Ovary_ratio) <- NULL
 
 # save
-write_csv(DE_OCCC_vs_GTEx_Ovary_ratio, file = "/Users/beyzaerkal/Desktop/occc_multi-omics/results/DE_results_OCCC_vs_GTEx_Ovary_ratio.csv")
+#write_csv(DE_OCCC_vs_GTEx_Ovary_ratio, file = "/Users/beyzaerkal/Desktop/occc_multi-omics/results/DE_results_OCCC_vs_GTEx_Ovary_ratio.csv")
 
 
 # save them as excel sheet
-addWorksheet(wb, "OCCC_vs_GTEx_Ovary_ratio")
-writeData(wb, "OCCC_vs_GTEx_Ovary_ratio", DE_OCCC_vs_GTEx_Ovary_ratio)
+#addWorksheet(wb, "OCCC_vs_GTEx_Ovary_ratio")
+#writeData(wb, "OCCC_vs_GTEx_Ovary_ratio", DE_OCCC_vs_GTEx_Ovary_ratio)
 
-saveWorkbook(wb, "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary/DE_results.xlsx", overwrite = TRUE)
+#saveWorkbook(wb, "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary/DE_results.xlsx", overwrite = TRUE)
 
