@@ -2,18 +2,13 @@
 library(tidyverse)
 library(readxl)
 library(biomaRt)
+options(timeout = 120)
 library(openxlsx)
-library(ComplexHeatmap)
-library(circlize)
-library(SummarizedExperiment)
-library(GenomicRanges)
-library(grid)
-library(ggplot2)
-library(ggrepel)
 library(tibble)
 library(stringr)
 library(org.Hs.eg.db)
 library(AnnotationDbi)
+
 
 ###########################
 # PROTEOMICS SECTION
@@ -21,7 +16,7 @@ library(AnnotationDbi)
 
 # OCCC - proteomics
 
-pro_L <- read_excel("/Users/beyzaerkal/Desktop/occc_repo/raw_input_files/Proteomic_land/source_file_proL.xlsx", sheet = 14, col_names = TRUE)
+pro_L <- read_excel("/Users/beyzaerkal/Desktop/internship/internship_env/raw_input_files/PXD032355_file/source_file_proL.xlsx", sheet = 14, col_names = TRUE)
 # 40 samples in CCOC group, Protein expression, also have normal group (n=31)
 #sheet 14 - raw protein intensity values from mass spectrometry PulseDIA
 pro_L <- pro_L[, colSums(!is.na(pro_L)) > 0]
@@ -58,61 +53,19 @@ pro_L_matrix_out <- pro_L_matrix %>%
   as.data.frame(check.names = FALSE) %>%
   tibble::rownames_to_column("Geneid")
 
-write.csv(pro_L_matrix_out, "/Users/beyzaerkal/Desktop/occc_repo/Input_OC_prot/Proteomic_land_PROT.csv", row.names = FALSE)
-
-# log-transform intensities
-#pro_L_log <- log2(pro_L_matrix + 1)
-
-# z-score normalize per gene
-#pro_L_z <- t(scale(t(pro_L_log), center = TRUE, scale = TRUE))
-
-# change rownames to colnames and name it Geneid
-#pro_L_z <- as.data.frame(pro_L_z, check.names = FALSE) %>% mutate(Geneid = rownames(.)) %>%              
-#relocate(Geneid, .before = 1) %>% {rownames(.) <- NULL; .}   
-
-
-##################
-# ccRCC proteomics
-##################
-
-prot_renal_raw <- read_tsv("/Users/beyzaerkal/Desktop/occc_repo/raw_files_ccRCC/TCGA-KIRC.protein.tsv")
-
-prot_renal_raw[is.na(prot_renal_raw)] <- 0
-
-prot_renal_raw$CleanName <- str_replace(prot_renal_raw$peptide_target, "[-_].*$", "")
-
-# mapping protein symbols using ALIAS2EG and then back to SYMBOL
-mapped <- mapIds(org.Hs.eg.db, 
-                 keys = prot_renal_raw$CleanName,
-                 column = "SYMBOL",
-                 keytype = "ALIAS",
-                 multiVals = "first")
-
-prot_renal_raw$GeneSymbol <- mapped[prot_renal_raw$CleanName] # 487
-
-unmapped <- prot_renal_raw[is.na(prot_renal_raw$GeneSymbol), "peptide_target"]
-length(unmapped)
-head(unmapped) #161
-
-prot_renal_mapped <- prot_renal_raw[!is.na(prot_renal_raw$GeneSymbol), ] # 326
-
-
-colnames(prot_renal_mapped)[colnames(prot_renal_mapped) == "peptide_target"] <- "Geneid"
-prot_renal_mapped$Geneid <- toupper(prot_renal_mapped$Geneid) # for capital cases
-
-# clean the Geneid column 
-prot_renal_mapped$Geneid <- toupper(gsub("[-_].*$", "", prot_renal_mapped$Geneid))
-
-write.csv(prot_renal_mapped, "TCGA-KIRC.protein_with_genes2.csv", row.names = FALSE)
-
+wb <- createWorkbook()
+addWorksheet(wb, "Qian et al. (2024)")
+writeData(wb, "Qian et al. (2024)", pro_L_matrix_out)
+# 5 genes only, 40 samples
+#write.csv(pro_L_matrix_out, "/Users/beyzaerkal/Desktop/internship/internship_env/Input_OC_prot/Proteomic_land_PROT.csv", row.names = FALSE)
 
 
 ##################################
 # PROT: DepMap OCCC cell lines
 ##################################
 
-
-prot_ALL <- read_csv("/Users/beyzaerkal/Desktop/occc_repo/raw_input_files/DepMap_Prot/Harmonized_RPPA_CCLE_subsetted.csv", col_names = TRUE)
+# only have RPPA 
+prot_ALL <- read_csv("/Users/beyzaerkal/Desktop/internship/internship_env/raw_input_files/DepMap_Prot/Harmonized_RPPA_CCLE_subsetted.csv", col_names = TRUE)
 
 OCids <- c("ACH-000885", "ACH-000906", "ACH-000719", "ACH-000527", "ACH-000663", "ACH-000324", "ACH-000646")
 
@@ -120,7 +73,7 @@ prot_OCCC <- prot_ALL[prot_ALL$depmap_id %in% OCids, ]
 
 # remove extra col
 prot_OCCC_clean <- prot_OCCC[ , !colnames(prot_OCCC) %in% c("depmap_id", grep("lineage", colnames(prot_OCCC), value = TRUE))]
-# protid+delete colname
+# pivot and prot id+delete colname
 long <- prot_OCCC_clean %>% pivot_longer(cols = -cell_line_display_name, names_to = "ProtID", values_to = "value")
 
 # cell line -> colnames
@@ -131,7 +84,7 @@ rownames(prot_matrix) <- prot_matrix$ProtID
 prot_matrix$ProtID <- NULL
 
 
-# get UniprotID
+# get UniprotID to gene symbol
 prot_matrix$uniprot_id <- sub(" .*", "", rownames(prot_matrix))
 
 length(prot_matrix$uniprot_id) # 144
@@ -145,10 +98,9 @@ annot <- getBM(attributes = c("uniprotswissprot", "hgnc_symbol", "gene_biotype")
 
 annot_pc <- annot[annot$gene_biotype == "protein_coding", ]
 
-# merge into my data
-merged <- merge(prot_matrix, annot_pc[, c("uniprotswissprot", "hgnc_symbol")],
-                by.x = "uniprot_id", by.y = "uniprotswissprot", all.x = FALSE)
-xsz
+#merge into my data
+merged <- merge(prot_matrix, annot_pc[, c("uniprotswissprot", "hgnc_symbol")],by.x = "uniprot_id", by.y = "uniprotswissprot", all.x = FALSE)
+
 rownames(merged) <- merged$hgnc_symbol
 # drop
 merged$hgnc_symbol <- NULL
@@ -156,6 +108,8 @@ merged$uniprot_id <- NULL
 
 write.csv(merged, "DepMap_hRPPA_CCLE_OCCC_filtered.csv") # 144
 
+addWorksheet(wb, "Nusinow et al. (2020)")
+writeData(wb, "Nusinow et al. (2020)", merged)
 
 
 
@@ -164,7 +118,7 @@ write.csv(merged, "DepMap_hRPPA_CCLE_OCCC_filtered.csv") # 144
 ###################
 
 
-path <- "/Users/beyzaerkal/Desktop/occc_repo/raw_input_files/prot_OCCC_JJ2022_raw"
+path <- "/Users/beyzaerkal/Desktop/internship/internship_env/raw_input_files/prot_OCCC_JJ2022_raw"
 
 files <- list.files(path, full.names = TRUE)
 
@@ -177,7 +131,7 @@ read_oc_p <- function(file) {
   df_long <- df %>% dplyr::select(Accession, all_of(abundance_cols)) %>%
     pivot_longer(cols = all_of(abundance_cols), names_to = "Channel", values_to = "Abundance") %>%
     mutate(Abundance = trimws(Abundance),
-           Abundance = na_if(Abundance, ""),
+           Abundance = na_if(Abundance, ""), 
            Abundance = na_if(Abundance, "Not Found"),
            Abundance = as.numeric(Abundance), 
            Abundance = ifelse(is.na(Abundance), 0, Abundance),
@@ -195,7 +149,7 @@ proteomics_long <- purrr::map_df(files, read_oc_p)
 # standardise - remove N/C
 proteomics_long <- proteomics_long %>% mutate(sample_id = gsub("(N|C)$", "", sample_id))
 
-# aggregate multipel channels for same sample
+# aggregate multiple channels for same sample
 proteomics_summary <- proteomics_long %>%
   group_by(sample_id, Accession) %>%
   summarise(Abundance = median(Abundance, na.rm = TRUE), .groups = "drop")
@@ -208,7 +162,6 @@ prot_matrix <- proteomics_summary %>%
 prot_log2 <- prot_matrix %>% mutate(across(-sample_id, ~ log2(.x + 1)))
 
 # uniprot to gene symbol
-
 mart <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
 listAttributes(mart)[grep("uniprot", listAttributes(mart)$name), ]
 
@@ -249,6 +202,47 @@ prot_gene[is.na(prot_gene)] <- 0
 
 prot_gene <- prot_gene %>% tibble::rownames_to_column(var = "Geneid")
 
-
 write.csv(prot_gene, "proteomics_JJ2022_log2.csv", row.names = FALSE)
+
+addWorksheet(wb, "Ji et al. (2022)")
+writeData(wb, "Ji et al. (2022)", prot_gene)
+
+##################
+# ccRCC proteomics
+##################
+
+prot_renal_raw <- read_tsv("/Users/beyzaerkal/Desktop/internship/internship_env/raw_files_ccRCC/TCGA-KIRC.protein.tsv")
+
+prot_renal_raw[is.na(prot_renal_raw)] <- 0
+
+prot_renal_raw$CleanName <- str_replace(prot_renal_raw$peptide_target, "[-_].*$", "")
+
+# mapping protein symbols using ALIAS2EG and then back to SYMBOL
+mapped <- mapIds(org.Hs.eg.db, 
+                 keys = prot_renal_raw$CleanName,
+                 column = "SYMBOL",
+                 keytype = "ALIAS",
+                 multiVals = "first")
+
+prot_renal_raw$GeneSymbol <- mapped[prot_renal_raw$CleanName] # 487
+
+unmapped <- prot_renal_raw[is.na(prot_renal_raw$GeneSymbol), "peptide_target"]
+length(unmapped)
+head(unmapped) #161
+
+prot_renal_mapped <- prot_renal_raw[!is.na(prot_renal_raw$GeneSymbol), ] # 326
+
+
+colnames(prot_renal_mapped)[colnames(prot_renal_mapped) == "peptide_target"] <- "Geneid"
+prot_renal_mapped$Geneid <- toupper(prot_renal_mapped$Geneid) # for capital cases
+
+# clean the Geneid column 
+prot_renal_mapped$Geneid <- toupper(gsub("[-_].*$", "", prot_renal_mapped$Geneid))
+
+write.csv(prot_renal_mapped, "TCGA-KIRC.protein_with_genes2.csv", row.names = FALSE)
+
+addWorksheet(wb, "TCGA-KIRC_RPPA")
+writeData(wb, "TCGA-KIRC_RPPA", prot_renal_mapped)
+saveWorkbook(wb, file = "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary", overwrite = TRUE)
+
 
