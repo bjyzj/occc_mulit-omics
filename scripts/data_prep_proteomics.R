@@ -2,18 +2,25 @@
 library(tidyverse)
 library(readxl)
 library(biomaRt)
+library(purrr)
 options(timeout = 120)
 library(openxlsx)
 library(tibble)
 library(stringr)
 library(org.Hs.eg.db)
 library(AnnotationDbi)
+library(limma)
+library(ggplot2)
 
 
 ###########################
-# PROTEOMICS SECTION
+# PROTEOMICS SECTION (OLD AND NEW PROTEOMICS DATA)
 ###########################
 
+
+###########
+# OLD
+###########
 # OCCC - proteomics
 
 pro_L <- read_excel("/Users/beyzaerkal/Desktop/internship/internship_env/raw_input_files/PXD032355_file/source_file_proL.xlsx", sheet = 14, col_names = TRUE)
@@ -112,6 +119,55 @@ addWorksheet(wb, "Nusinow et al. (2020)")
 writeData(wb, "Nusinow et al. (2020)", merged)
 
 
+##################
+# ccRCC proteomics
+##################
+
+prot_renal_raw <- read_tsv("/Users/beyzaerkal/Desktop/internship/internship_env/raw_files_ccRCC/TCGA-KIRC.protein.tsv")
+
+prot_renal_raw[is.na(prot_renal_raw)] <- 0
+
+prot_renal_raw$CleanName <- str_replace(prot_renal_raw$peptide_target, "[-_].*$", "")
+
+# mapping protein symbols using ALIAS2EG and then back to SYMBOL
+mapped <- mapIds(org.Hs.eg.db, 
+                 keys = prot_renal_raw$CleanName,
+                 column = "SYMBOL",
+                 keytype = "ALIAS",
+                 multiVals = "first")
+
+prot_renal_raw$GeneSymbol <- mapped[prot_renal_raw$CleanName] # 487
+
+unmapped <- prot_renal_raw[is.na(prot_renal_raw$GeneSymbol), "peptide_target"]
+length(unmapped)
+head(unmapped) #161
+
+prot_renal_mapped <- prot_renal_raw[!is.na(prot_renal_raw$GeneSymbol), ] # 326
+
+
+colnames(prot_renal_mapped)[colnames(prot_renal_mapped) == "peptide_target"] <- "Geneid"
+prot_renal_mapped$Geneid <- toupper(prot_renal_mapped$Geneid) # for capital cases
+
+# clean the Geneid column 
+prot_renal_mapped$Geneid <- toupper(gsub("[-_].*$", "", prot_renal_mapped$Geneid))
+
+write.csv(prot_renal_mapped, "TCGA-KIRC.protein_with_genes2.csv", row.names = FALSE)
+
+addWorksheet(wb, "TCGA-KIRC_RPPA")
+writeData(wb, "TCGA-KIRC_RPPA", prot_renal_mapped)
+
+
+
+
+
+
+##################
+#USED and NEW BELOW
+##################
+
+
+
+
 
 ###################
 # The proteome of CCOC paper PRIDE ARCHIVE Protein txt files with different batches
@@ -149,6 +205,17 @@ proteomics_long <- purrr::map_df(files, read_oc_p)
 # standardise - remove N/C
 proteomics_long <- proteomics_long %>% mutate(sample_id = gsub("(N|C)$", "", sample_id))
 
+# plot density plot for checks
+ggplot(proteomics_long, aes(x = log2(Abundance + 1), group = sample_id, colour = sample_id)) +
+  geom_density(alpha = 0.3) +
+  theme_bw() +
+  labs(
+    title = "Density distribution of OCCC proteomics samples",
+    x = "log2 Abundance",
+    y = "Density"
+  ) +
+  theme(legend.position = "none")
+
 # aggregate multiple channels for same sample
 proteomics_summary <- proteomics_long %>%
   group_by(sample_id, Accession) %>%
@@ -160,6 +227,35 @@ prot_matrix <- proteomics_summary %>%
 
 # log2 transform
 prot_log2 <- prot_matrix %>% mutate(across(-sample_id, ~ log2(.x + 1)))
+
+
+######## check TMT batch effects with PCA
+pca_matrix <- prot_log2 %>%
+  tibble::column_to_rownames("sample_id")
+
+# numeric
+pca_matrix <- data.matrix(pca_matrix)
+
+# remove zero variance
+pca_matrix <- pca_matrix[, apply(pca_matrix, 2, sd, na.rm = TRUE) > 0]
+
+# remove NA or Inf
+pca_matrix <- pca_matrix[, colSums(is.na(pca_matrix) | is.infinite(pca_matrix)) == 0]
+
+pca <- prcomp(pca_matrix, scale. = TRUE)
+
+pca_df <- data.frame(PC1 = pca$x[,1], PC2 = pca$x[,2],
+                     sample_id = rownames(pca$x))
+
+# extract batch
+pca_df$Batch <- stringr::str_extract(pca_df$sample_id, "F[0-9]+")
+# plot PCA
+ggplot(pca_df, aes(PC1, PC2, color = Batch)) + 
+  geom_point(size = 3) +
+  theme_bw() +
+  labs(x = "PC1", y = "PC2")
+
+###############
 
 # uniprot to gene symbol
 mart <- useMart("ensembl", dataset = "hsapiens_gene_ensembl")
@@ -189,7 +285,6 @@ prot_long <- prot_log2 %>%
   summarise(Abundance = median(Abundance, na.rm = TRUE), .groups = "drop") %>%
   inner_join(mapping %>% filter(!is.na(SYMBOL)), by = "Accession")
 
-
 # aggregate multi channel samples per protein using median
 prot_gene <- prot_long %>%
   group_by(sample_id, SYMBOL) %>%
@@ -202,47 +297,83 @@ prot_gene[is.na(prot_gene)] <- 0
 
 prot_gene <- prot_gene %>% tibble::rownames_to_column(var = "Geneid")
 
-write.csv(prot_gene, "proteomics_JJ2022_log2.csv", row.names = FALSE)
+# adding median centering for combined matrix DE with ccRCC
+# convert to matrix for centering
+prot_mat <- prot_gene %>% tibble::column_to_rownames("Geneid") %>% as.matrix()
 
-addWorksheet(wb, "Ji et al. (2022)")
-writeData(wb, "Ji et al. (2022)", prot_gene)
+# median-center each sample (col)
+prot_centered <- sweep(prot_mat, 2,
+                       apply(prot_mat, 2, median, na.rm = TRUE), "-")
+
+# convert back to df
+prot_gene_centered <- as.data.frame(prot_centered) %>%
+  tibble::rownames_to_column("Geneid")
+
+# save both log2 and centered
+write_csv(prot_gene, "/Users/beyzaerkal/Desktop/occc_multi-omics/processed/proteomics_JJ2022_log2.csv")
+write_csv(prot_gene_centered, "/Users/beyzaerkal/Desktop/occc_multi-omics/processed/proteomics_JJ2022_log2_centered.csv")
+
+# svae to excel
+wb <- createWorkbook()
+addWorksheet(wb, "Ji et al. (2022) log2")
+writeData(wb, "Ji et al. (2022) log2", prot_gene)
+
+addWorksheet(wb, "Ji et al. (2022) centered")
+writeData(wb, "Ji et al. (2022) centered", prot_gene_centered)
+
 
 ##################
-# ccRCC proteomics
-##################
+# ccRCC prot
+# PDC000127  - tmt10 - protoemics data commons
+####################
 
-prot_renal_raw <- read_tsv("/Users/beyzaerkal/Desktop/internship/internship_env/raw_files_ccRCC/TCGA-KIRC.protein.tsv")
+ccrcc_prot_raw <- read_tsv("/Users/beyzaerkal/Desktop/internship/internship_env/raw_files_ccRCC/CPTAC3_Clear_Cell_Renal_Cell_Carcinoma_Proteome.tmt10.tsv")
 
-prot_renal_raw[is.na(prot_renal_raw)] <- 0
+ccrcc_prot <- ccrcc_prot_raw %>% filter(!Gene %in% c("Mean", "Median", "StdDev")) # remove summary rows
 
-prot_renal_raw$CleanName <- str_replace(prot_renal_raw$peptide_target, "[-_].*$", "")
+# only log ratio cols
+ccrcc_prot <- ccrcc_prot %>% dplyr::select(Gene, contains("Log Ratio")) %>% dplyr::select(-contains("Unshared"))
 
-# mapping protein symbols using ALIAS2EG and then back to SYMBOL
-mapped <- mapIds(org.Hs.eg.db, 
-                 keys = prot_renal_raw$CleanName,
-                 column = "SYMBOL",
-                 keytype = "ALIAS",
-                 multiVals = "first")
+ccrcc_matrix <- ccrcc_prot %>% column_to_rownames("Gene") %>% as.matrix()
 
-prot_renal_raw$GeneSymbol <- mapped[prot_renal_raw$CleanName] # 487
+# check distribution
+boxplot(ccrcc_matrix, las = 2, main = "ccRCC CPTAC log ratios")
 
-unmapped <- prot_renal_raw[is.na(prot_renal_raw$GeneSymbol), "peptide_target"]
-length(unmapped)
-head(unmapped) #161
+# replace NA with 0
+ccrcc_matrix[is.na(ccrcc_matrix)] <- 0
 
-prot_renal_mapped <- prot_renal_raw[!is.na(prot_renal_raw$GeneSymbol), ] # 326
+# median-center ccRCC samples 
+ccrcc_centered <- sweep(ccrcc_matrix, 2,
+                        apply(ccrcc_matrix, 2, median, na.rm = TRUE), "-")
 
+ccrcc_centered_df <- as.data.frame(ccrcc_centered) %>% rownames_to_column("Geneid")
+# already HGNC gene symbols
+# save both log2 ratio and centered have smae values meaning it was already cnetered around median (ccrcc_prot vs ccrcc_prot_centered)
+#write_csv(ccrcc_prot, "/Users/beyzaerkal/Desktop/occc_multi-omics/processed/CPTAC_ccRCC_proteomics_log_ratios.csv")
+write_csv(ccrcc_centered_df, "/Users/beyzaerkal/Desktop/occc_multi-omics/processed/CPTAC_ccRCC_proteomics_log_ratios_centered.csv")
 
-colnames(prot_renal_mapped)[colnames(prot_renal_mapped) == "peptide_target"] <- "Geneid"
-prot_renal_mapped$Geneid <- toupper(prot_renal_mapped$Geneid) # for capital cases
+#addWorksheet(wb, "CPTAC ccRCC")
+#writeData(wb, "CPTAC ccRCC", ccrcc_prot)
 
-# clean the Geneid column 
-prot_renal_mapped$Geneid <- toupper(gsub("[-_].*$", "", prot_renal_mapped$Geneid))
+addWorksheet(wb, "CPTAC ccRCC centered")
+writeData(wb, "CPTAC ccRCC centered", ccrcc_centered_df)
 
-write.csv(prot_renal_mapped, "TCGA-KIRC.protein_with_genes2.csv", row.names = FALSE)
-
-addWorksheet(wb, "TCGA-KIRC_RPPA")
-writeData(wb, "TCGA-KIRC_RPPA", prot_renal_mapped)
 saveWorkbook(wb, file = "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary", overwrite = TRUE)
+
+
+
+# checking the scaling fro both ccRCC and OCCC
+par(mfrow=c(1,2))
+# OCCC raw log2 (no median centering)
+boxplot(as.matrix(prot_gene %>% column_to_rownames("Geneid")), main="OCCC raw log2", las=2, cex.axis=0.7)
+# ccRCC raw log ratios - no median cnetreing 
+boxplot(ccrcc_matrix, main="ccRCC log ratios", las=2, cex.axis=0.7)
+#############
+# median centreboard
+par(mfrow=c(1,2))
+boxplot(as.matrix(prot_gene_centered %>% column_to_rownames("Geneid")), main="OCCC log2 median centered", las=2, cex.axis=0.7)
+boxplot(ccrcc_centered, main="ccRCC log ratios median centered", las=2, cex.axis=0.7)
+
+
 
 
