@@ -162,7 +162,7 @@ writeData(wb, "TCGA-KIRC_RPPA", prot_renal_mapped)
 
 
 ##################
-#USED and NEW BELOW
+#NEW BELOW
 ##################
 
 
@@ -362,7 +362,7 @@ saveWorkbook(wb, file = "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementar
 
 
 
-# checking the scaling fro both ccRCC and OCCC
+# checking the scaling for both ccRCC and OCCC
 par(mfrow=c(1,2))
 # OCCC raw log2 (no median centering)
 boxplot(as.matrix(prot_gene %>% column_to_rownames("Geneid")), main="OCCC raw log2", las=2, cex.axis=0.7)
