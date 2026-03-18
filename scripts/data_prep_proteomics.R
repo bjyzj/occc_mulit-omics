@@ -207,14 +207,8 @@ proteomics_long <- proteomics_long %>% mutate(sample_id = gsub("(N|C)$", "", sam
 
 # plot density plot for checks
 ggplot(proteomics_long, aes(x = log2(Abundance + 1), group = sample_id, colour = sample_id)) +
-  geom_density(alpha = 0.3) +
-  theme_bw() +
-  labs(
-    title = "Density distribution of OCCC proteomics samples",
-    x = "log2 Abundance",
-    y = "Density"
-  ) +
-  theme(legend.position = "none")
+  geom_density(alpha = 0.3) + theme_bw() +
+  labs(x = "log2 Abundance", y = "Density") + theme(legend.position = "none")
 
 # aggregate multiple channels for same sample
 proteomics_summary <- proteomics_long %>%

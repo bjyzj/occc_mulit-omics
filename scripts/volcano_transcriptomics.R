@@ -25,8 +25,8 @@ DE_OCvsRC$Significance[DE_OCvsRC$adj.P.Val < fdr_thresh & DE_OCvsRC$logFC < -fc_
 
 # Volcano plot
 v1 <- ggplot(DE_OCvsRC, aes(x = logFC,
-                          y = -log10(adj.P.Val),
-                          color = Significance)) +
+                            y = -log10(adj.P.Val),
+                            color = Significance)) +
   geom_point(alpha = 0.6, size = 1.2) +
   scale_color_manual(values = c("Up" = "red4",
                                 "Down" = "navyblue",
@@ -65,8 +65,8 @@ DE_OCvsGTExOV$Significance[DE_OCvsGTExOV$adj.P.Val < fdr_thresh & DE_OCvsGTExOV$
 
 # Volcano plot
 v2 <- ggplot(DE_OCvsGTExOV, aes(x = logFC,
-                            y = -log10(adj.P.Val),
-                            color = Significance)) +
+                                y = -log10(adj.P.Val),
+                                color = Significance)) +
   geom_point(alpha = 0.6, size = 1.2) +
   scale_color_manual(values = c("Up" = "deeppink4",
                                 "Down" = "dodgerblue4",
