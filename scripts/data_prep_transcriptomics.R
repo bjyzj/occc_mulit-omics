@@ -210,37 +210,37 @@ writeData(wb, "GSE189553", tpm_GSE189553_mRNA)
 # (5) rpkm to tpm (113 sample)
 ###################################
 
-rpkm_113_data <- read_excel("/Users/beyzaerkal/Desktop/internship/internship_env/OCCC_datasets/113_OCCC/RPKM_expdata_113OCCC.xlsx", sheet = 1, col_names = TRUE)
+#rpkm_113_data <- read_excel("/Users/beyzaerkal/Desktop/internship/internship_env/OCCC_datasets/113_OCCC/RPKM_expdata_113OCCC.xlsx", sheet = 1, col_names = TRUE)
 
-colnames(rpkm_113_data) <- trimws(colnames(rpkm_113_data)) # colname had issue so cleaned
-colnames(rpkm_113_data)[1] <- "Geneid"
+#colnames(rpkm_113_data) <- trimws(colnames(rpkm_113_data)) # colname had issue so cleaned
+#colnames(rpkm_113_data)[1] <- "Geneid"
 
-rpkm_matrix <- as.matrix(rpkm_113_data[, -1])
+#rpkm_matrix <- as.matrix(rpkm_113_data[, -1])
 
-rpkm2tpm <- function(rpkm_matrix) {
-  tpm <- apply(rpkm_matrix, 2, function(x) {
-    x / sum(x, na.rm = TRUE) * 1e6})
-  return(tpm)}
+#rpkm2tpm <- function(rpkm_matrix) {
+ # tpm <- apply(rpkm_matrix, 2, function(x) {
+  #  x / sum(x, na.rm = TRUE) * 1e6})
+  #return(tpm)}
 
-tpm_matrix <- rpkm2tpm(rpkm_matrix)
-tpm_113 <- cbind(Geneid = rpkm_113_data$Geneid, as.data.frame(tpm_matrix))
+#tpm_matrix <- rpkm2tpm(rpkm_matrix)
+#tpm_113 <- cbind(Geneid = rpkm_113_data$Geneid, as.data.frame(tpm_matrix))
 # no NAs 
 
-sum(duplicated(tpm_113$Geneid))
+#sum(duplicated(tpm_113$Geneid))
 # mRNA filter
-annot <- getBM(attributes = c("hgnc_symbol", "gene_biotype"),
-               filters = "hgnc_symbol",
-               values = unique(tpm_113$Geneid),
-               mart = ensembl)
+#annot <- getBM(attributes = c("hgnc_symbol", "gene_biotype"),
+ #              filters = "hgnc_symbol",
+  #             values = unique(tpm_113$Geneid),
+   #            mart = ensembl)
 
-mRNA_genes <- annot %>% filter(gene_biotype == "protein_coding") %>% pull(hgnc_symbol)
+#mRNA_genes <- annot %>% filter(gene_biotype == "protein_coding") %>% pull(hgnc_symbol)
 
-tpm_113_mRNA <- tpm_113 %>% filter(Geneid %in% mRNA_genes) 
+#tpm_113_mRNA <- tpm_113 %>% filter(Geneid %in% mRNA_genes) 
 
-write.csv(tpm_113_mRNA, "/Users/beyzaerkal/Desktop/internship/internship_env/OCCC_datasets/tpm113_RNAseq_mRNA_TPM.csv", row.names = FALSE)
+#write.csv(tpm_113_mRNA, "/Users/beyzaerkal/Desktop/internship/internship_env/OCCC_datasets/tpm113_RNAseq_mRNA_TPM.csv", row.names = FALSE)
 
-addWorksheet(wb, "Stružinská et al., 2023")
-writeData(wb, "Stružinská et al., 2023", tpm_113_mRNA)
+#addWorksheet(wb, "Stružinská et al., 2023")
+#writeData(wb, "Stružinská et al., 2023", tpm_113_mRNA)
 
 ####################################
 # (6) rpkm to tpm # paper: Systematic Identification of Characteristic Genes of Ovarian Clear Cell Carcinoma

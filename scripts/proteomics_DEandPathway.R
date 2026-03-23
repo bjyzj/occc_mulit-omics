@@ -47,10 +47,11 @@ fit2 <- contrasts.fit(fit, contrast.matrix)
 fit2 <- eBayes(fit2)
 
 results <- topTable(fit2, coef = "OCCC_vs_ccRCC", number = Inf, adjust.method = "BH")
-results <- results %>% rownames_to_column(var = "Geneid")
+results_df <- results %>% rownames_to_column(var = "Geneid")
 
-write_csv(results, "/Users/beyzaerkal/Desktop/occc_multi-omics/results/proteomics_results/DE_OCCC_vs_ccRCC_proteomics.csv")
+#write_csv(results, "/Users/beyzaerkal/Desktop/occc_multi-omics/results/proteomics_results/DE_OCCC_vs_ccRCC_proteomics.csv")
 
+# checked MA plot everything looks good continue with pathway analysis
 ###########################
 # ORA
 ###########################
@@ -62,10 +63,10 @@ gene_map <- bitr(results$Gene,
 
 results_mapped <- results %>% inner_join(gene_map, by = c("Gene" = "SYMBOL"))
 
-up_genes <- results_mapped %>% filter(adj.P.Val < 0.05 & logFC > 1)
-down_genes <- results_mapped %>% filter(adj.P.Val < 0.05 & logFC < -1)
+up_genes <- results_mapped %>% filter(adj.P.Val < 0.05 & logFC > 0.5)
+down_genes <- results_mapped %>% filter(adj.P.Val < 0.05 & logFC < -0.5)
 
-up_entrez_ids <- unique(up_genes$ENTREZID)
+up_entrez_ids <- unique(up_genes$ENTREZID) #
 down_entrez_ids <- unique(down_genes$ENTREZID)
 
 
