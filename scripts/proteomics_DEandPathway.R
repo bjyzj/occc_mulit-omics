@@ -47,9 +47,9 @@ fit2 <- contrasts.fit(fit, contrast.matrix)
 fit2 <- eBayes(fit2)
 
 results <- topTable(fit2, coef = "OCCC_vs_ccRCC", number = Inf, adjust.method = "BH")
+results <- results %>% rownames_to_column(var = "Geneid")
 
-#write.csv(results, "/Users/beyzaerkal/Desktop/occc_multi-omics/results/proteomics_results/DE_OCCC_vs_ccRCC_proteomics.csv")
-
+write_csv(results, "/Users/beyzaerkal/Desktop/occc_multi-omics/results/proteomics_results/DE_OCCC_vs_ccRCC_proteomics.csv")
 
 ###########################
 # ORA
