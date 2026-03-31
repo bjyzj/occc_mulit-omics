@@ -201,9 +201,8 @@ read_oc_p <- function(file) {
 
 
 # all in one df 
-any(is.na(proteomics_long))
 proteomics_long <- purrr::map_df(files, read_oc_p)
-
+any(is.na(proteomics_long))
 # standardise - remove N/C
 proteomics_long <- proteomics_long %>% mutate(sample_id = gsub("(N|C)$", "", sample_id))
 
@@ -393,7 +392,7 @@ fit2 <- contrasts.fit(fit, contrast.matrix)
 fit2 <- eBayes(fit2)
 
 results <- topTable(fit2, coef = "OCCC_vs_ccRCC", number = Inf, adjust.method = "BH")
-
+write_csv(results, "/Users/beyzaerkal/Desktop/occc_multi-omics/results/proteomics_results/DE_OCCC_vs_ccRCC_proteomics_qn.csv")
 hist(results$logFC, breaks = 50)
 
 addWorksheet(wb, "Combined_matrix")
@@ -409,8 +408,6 @@ wb2 <- createWorkbook()
 addWorksheet(wb2, "DE_prot_OCCC_vs_ccRCC")
 writeData(wb2, "DE_prot_OCCC_vs_ccRCC", results)
 saveWorkbook(wb, file = "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary", overwrite = TRUE)
-write_csv(prot_combined_qn_df, "/Users/beyzaerkal/Desktop/occc_multi-omics/results/proteomics_results/DE_OCCC_vs_ccRCC_proteomics_qn.csv")
-
 
 
 # checking the scaling for both ccRCC and OCCC
