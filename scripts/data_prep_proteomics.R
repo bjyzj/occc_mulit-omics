@@ -3,7 +3,7 @@ library(tidyverse)
 library(readxl)
 library(biomaRt)
 library(purrr)
-options(timeout = 120)
+options(timeout = 300)
 library(openxlsx)
 library(tibble)
 library(stringr)
@@ -12,7 +12,7 @@ library(AnnotationDbi)
 library(limma)
 library(ggplot2)
 library(impute)
-
+library(preprocessCore)
 set.seed(123)
 ###########################
 # PROTEOMICS SECTION (OLD AND NEW PROTEOMICS DATA)
@@ -261,10 +261,10 @@ uniprot_ids <- unique(proteomics_long$Accession)
 # Swiss-prot
 mapping_swiss <- getBM(attributes = c("uniprotswissprot", "hgnc_symbol"),
                        filters = "uniprotswissprot", values = uniprot_ids, mart = mart)
-head(mapping_swiss)
+#head(mapping_swiss)
 #TrEMBL
 mapping_trembl <- getBM(attributes = c("uniprotsptrembl"), values = uniprot_ids, mart = mart)
-head(mapping_trembl)
+#head(mapping_trembl)
 
 mapping_trembl <- mapping_trembl %>% dplyr::rename(Accession = uniprotsptrembl) %>% mutate(SYMBOL = NA_character_)
 # combine
@@ -362,7 +362,54 @@ write_csv(ccrcc_centered_df, "/Users/beyzaerkal/Desktop/occc_multi-omics/process
 addWorksheet(wb, "CPTAC ccRCC centered")
 writeData(wb, "CPTAC ccRCC centered", ccrcc_centered_df)
 
+#saveWorkbook(wb, file = "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary", overwrite = TRUE)
+
+######################
+# renormalise for merging - otherwise causes negative domination - check on hist
+# DE limma
+######################
+occc_mat <- prot_gene_centered %>% column_to_rownames("Geneid") %>% as.matrix()
+
+ccrcc_mat <- ccrcc_centered_df %>% column_to_rownames("Geneid") %>% as.matrix()
+
+common_genes <- intersect(rownames(occc_mat), rownames(ccrcc_mat))
+
+occc_mat <- occc_mat[common_genes, ]
+ccrcc_mat <- ccrcc_mat[common_genes, ]
+
+prot_combined <- cbind(occc_mat, ccrcc_mat)
+prot_combined_qn <- normalize.quantiles(as.matrix(prot_combined))
+
+rownames(prot_combined_qn) <- rownames(prot_combined)
+colnames(prot_combined_qn) <- colnames(prot_combined)
+
+group <- factor(c(rep("OCCC", ncol(occc_mat)), rep("ccRCC", ncol(ccrcc_mat)))) 
+design <- model.matrix(~0 + group)
+colnames(design) <- levels(group)
+
+fit <- lmFit(prot_combined_qn, design)
+contrast.matrix <- makeContrasts(OCCC_vs_ccRCC = OCCC - ccRCC, levels = design)
+fit2 <- contrasts.fit(fit, contrast.matrix)
+fit2 <- eBayes(fit2)
+
+results <- topTable(fit2, coef = "OCCC_vs_ccRCC", number = Inf, adjust.method = "BH")
+
+hist(results$logFC, breaks = 50)
+
+addWorksheet(wb, "Combined_matrix")
+writeData(wb, "Combined_matrix", prot_combined_qn_df)
 saveWorkbook(wb, file = "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary", overwrite = TRUE)
+
+
+prot_combined_qn_df <- as.data.frame(prot_combined_qn) %>%
+  tibble::rownames_to_column(var = "Geneid")
+
+# FOR DE
+wb2 <- createWorkbook()
+addWorksheet(wb2, "DE_prot_OCCC_vs_ccRCC")
+writeData(wb2, "DE_prot_OCCC_vs_ccRCC", results)
+saveWorkbook(wb, file = "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary", overwrite = TRUE)
+write_csv(prot_combined_qn_df, "/Users/beyzaerkal/Desktop/occc_multi-omics/results/proteomics_results/DE_OCCC_vs_ccRCC_proteomics_qn.csv")
 
 
 
