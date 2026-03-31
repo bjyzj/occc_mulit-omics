@@ -392,7 +392,9 @@ fit2 <- contrasts.fit(fit, contrast.matrix)
 fit2 <- eBayes(fit2)
 
 results <- topTable(fit2, coef = "OCCC_vs_ccRCC", number = Inf, adjust.method = "BH")
-write_csv(results, "/Users/beyzaerkal/Desktop/occc_multi-omics/results/proteomics_results/DE_OCCC_vs_ccRCC_proteomics_qn.csv")
+results_df <- results %>% tibble::rownames_to_column(var = "Geneid")
+
+write_csv(results_df, "/Users/beyzaerkal/Desktop/occc_multi-omics/results/proteomics_results/DE_OCCC_vs_ccRCC_proteomics_qn.csv")
 hist(results$logFC, breaks = 50)
 
 addWorksheet(wb, "Combined_matrix")
@@ -406,8 +408,8 @@ prot_combined_qn_df <- as.data.frame(prot_combined_qn) %>%
 # FOR DE
 wb2 <- createWorkbook()
 addWorksheet(wb2, "DE_prot_OCCC_vs_ccRCC")
-writeData(wb2, "DE_prot_OCCC_vs_ccRCC", results)
-saveWorkbook(wb, file = "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary", overwrite = TRUE)
+writeData(wb2, "DE_prot_OCCC_vs_ccRCC", results_df)
+saveWorkbook(wb2, file = "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary", overwrite = TRUE)
 
 
 # checking the scaling for both ccRCC and OCCC
