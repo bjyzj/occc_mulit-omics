@@ -7,8 +7,8 @@ library(RColorBrewer)
 
 set.seed(123)
 
-DE_OCvsRC <- read_csv("/Users/beyzaerkal/Desktop/occc_multi-omics/results/DE_results_OCCC_vs_ccRCC_ratio.csv")
-DE_OCvsGTExOV <- read_csv("/Users/beyzaerkal/Desktop/occc_multi-omics/results/DE_results_OCCC_vs_GTEx_Ovary_ratio.csv")
+DE_OCvsRC <- read_csv("/Users/beyzaerkal/Desktop/occc_multi-omics/results/transcriptomics_results/DE_results_OCCC_vs_ccRCC_ratio.csv")
+DE_OCvsGTExOV <- read_csv("/Users/beyzaerkal/Desktop/occc_multi-omics/results/transcriptomics_results/DE_results_OCCC_vs_GTEx_Ovary_ratio.csv")
 
 sample_info <- readRDS("/Users/beyzaerkal/Desktop/occc_multi-omics/processed/sample_info_OCandRC.rds")
 expr_mat <- readRDS("/Users/beyzaerkal/Desktop/occc_multi-omics/processed/expression_matrix_occc_renal.rds")

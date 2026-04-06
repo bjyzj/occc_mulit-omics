@@ -17,7 +17,8 @@ set.seed(123)
 
 # load
 # prot
-protDE <- read_csv("/Users/beyzaerkal/Desktop/occc_multi-omics/results/proteomics_results/DE_OCCC_vs_ccRCC_proteomics.csv", col_names = TRUE)
+#OLD#protDE <- read_csv("/Users/beyzaerkal/Desktop/occc_multi-omics/results/proteomics_results/DE_OCCC_vs_ccRCC_proteomics.csv", col_names = TRUE)
+protDE <- read_csv("/Users/beyzaerkal/Desktop/occc_multi-omics/results/proteomics_results/DE_OCCC_vs_ccRCC_proteomics_qn.csv")
 # rna
 DE_OCvsRC <- read_csv("/Users/beyzaerkal/Desktop/occc_multi-omics/results/transcriptomics_results/DE_results_OCCC_vs_ccRCC_ratio.csv")
 DE_OCvsGTExOV <- read_csv("/Users/beyzaerkal/Desktop/occc_multi-omics/results/transcriptomics_results/DE_results_OCCC_vs_GTEx_Ovary_ratio.csv")
@@ -83,7 +84,9 @@ ggplot(protDE, aes(x = AveExpr, y = logFC)) +
     color = "FDR < 0.05")
 
 ###############################
-
+merged <- inner_join(DE_OCvsRC %>% dplyr::select(Geneid, logFC), protDE %>% dplyr::select(Geneid, logFC),
+                     by = "Geneid",
+                     suffix = c(".x", ".y"))
 # multi-omics scatter plot
 
 ggplot(merged, aes(x = logFC.x, y = logFC.y)) +
