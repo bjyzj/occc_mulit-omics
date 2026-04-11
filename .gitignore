@@ -8,3 +8,7 @@
 .Rproj.user
 processed
 inputs
+
+*.csv
+results/
+png_files/
