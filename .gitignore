@@ -12,3 +12,4 @@ inputs
 *.csv
 results/
 png_files/
+supplementary/
