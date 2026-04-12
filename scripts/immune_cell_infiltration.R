@@ -36,14 +36,6 @@ hallmark <- read.gmt("/Users/beyzaerkal/Desktop/internship/internship_env/h.all.
 
 ################################
 
-# all together
-occc_all <- cbind(
-  CCOC_df_mRNA,
-  ea_tpm_mRNA,
-  tpm_GSE160692_mRNA,
-  tpm_GSE189553_mRNA,
-  tpm_SD1_OC_mRNA
-)
 
 # put genes in rownames
 CCOC_df_mRNA <- as.data.frame(CCOC_df_mRNA)
@@ -102,7 +94,7 @@ head(rownames(exprMatrix))
 
 results <- xCellAnalysis(exprMatrix)
 
-dim(results)
+dim(results) # 67 235
 
 
 
@@ -146,36 +138,7 @@ ggplot(df_long, aes(x = Sample, y = CellType, fill = Score)) +
     axis.text.y = element_text(size = 7)) + labs(x = "Samples", y = "Cell Types")
 
 
-# stats tests
-df_long %>%
-  filter(CellType == "CD8+ T-cells") %>%
-  group_by(Study) %>%
-  summarise(
-    q25 = quantile(Score, 0.25, na.rm = TRUE),
-    median = median(Score, na.rm = TRUE),
-    q75 = quantile(Score, 0.75, na.rm = TRUE)
-  )
-
-df_long %>%
-  filter(CellType == "Macrophages") %>%
-  group_by(Study) %>%
-  summarise(
-    q25 = quantile(Score, 0.25, na.rm = TRUE),
-    median = median(Score, na.rm = TRUE),
-    q75 = quantile(Score, 0.75, na.rm = TRUE)
-  )
-
-df_long %>%
-  filter(CellType == "StromaScore") %>%
-  group_by(Study) %>%
-  summarise(
-    q25 = quantile(Score, 0.25, na.rm = TRUE),
-    median = median(Score, na.rm = TRUE),
-    q75 = quantile(Score, 0.75, na.rm = TRUE)
-  )
-
-
-# boxplot
+# boxplot setup
 df_long <- as.data.frame(results) %>%
   rownames_to_column("CellType") %>%
   pivot_longer(-CellType,
@@ -183,6 +146,7 @@ df_long <- as.data.frame(results) %>%
                values_to = "Score") %>%
   left_join(sample_info, by = "Sample")
 
+# boxplot
 ggplot(df_long %>% filter(CellType == "CD8+ T-cells"),
        aes(x = Study, y = Score, fill = Study)) +
   geom_boxplot(outlier.size = 0.5) +
@@ -256,6 +220,13 @@ kruskal.test(Score ~ Study, data = df_long %>% filter(CellType == "StromaScore")
 kruskal.test(Score ~ Study, data = df_long %>% filter(CellType == "cDC")) # dendritic cells
 kruskal.test(Score ~ Study, data = df_long %>% filter(CellType == "NK cells"))
 kruskal.test(Score ~ Study, data = df_long %>% filter(CellType == "Tregs"))
+
+pairwise.wilcox.test(df_long$Score, df_long$Study, p.adjust.method = "BH")
+
+
+
+
+
 
 
 ######################
@@ -342,8 +313,15 @@ results <- data.frame(
 
 results
 
-write_xlsx(results, "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary/immune_cell_infiltration_results.xlsx")
+#write_xlsx(results, "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary/immune_cell_infiltration_results.xlsx")
 
+##############
+# occc only biology
+##############
+df_occ <- df_combined %>% filter(TumourType == "OCCC")
+
+df_occ_mat <- df_occ %>% select(Sample, CellType, Score) %>%
+  pivot_wider(names_from = CellType, values_from = Score)
 
 
 
