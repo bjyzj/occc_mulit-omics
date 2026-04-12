@@ -323,8 +323,6 @@ df_occ <- df_combined %>% filter(TumourType == "OCCC")
 df_occ_mat <- df_occ %>% select(Sample, CellType, Score) %>%
   pivot_wider(names_from = CellType, values_from = Score)
 
-
-
 # PCA OCCC + ccRCC
 mat <- df_combined %>% dplyr::select(Sample, CellType, Score) %>%
   pivot_wider(names_from = CellType, values_from = Score)
