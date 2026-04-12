@@ -7,9 +7,10 @@ library(enrichplot)
 library(ggplot2)
 library(readxl)
 library(writexl)
-library(msigdbr)
-suppressPackageStartupMessages(library(ExperimentHub))
-suppressPackageStartupMessages(library(GSEABase))
+library(pheatmap)
+#library(msigdbr)
+#suppressPackageStartupMessages(library(ExperimentHub))
+#suppressPackageStartupMessages(library(GSEABase))
 
 set.seed(123)
 # Load the data
@@ -69,7 +70,7 @@ dotplot(reactome_down, showCategory = 20)  + theme_minimal()
 write_xlsx(list(KEGG_up = as.data.frame(kegg_up),
                 KEGG_down = as.data.frame(kegg_down),
                 Reactome_up = as.data.frame(reactome_up),
-                Reactome_down = as.data.frame(reactome_down)), "ORA_results.xlsx")
+                Reactome_down = as.data.frame(reactome_down)), "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary/ORA_RNA_OCvsRC_results.xlsx")
                                 
 ####################
 # gene ontology ORA
@@ -167,6 +168,9 @@ dotplot(gsea_mf, showCategory = 20, color = "NES") + theme_minimal()
 dotplot(gsea_kegg, showCategory = 20, color = "NES") + theme_minimal()
 dotplot(gsea_reactome, showCategory = 20, color = "NES") + theme_minimal()
 
+dotplot(gsea_kegg, showCategory = 10, color = "NES") + theme_minimal()
+dotplot(gsea_reactome, showCategory = 10, color = "NES") + theme_minimal()
+
 # gseacurev1
 gseaplot2(gsea_reactome, geneSetID = "R-HSA-9752946", title = "Expression and translocation of olfactory receptors")
 # gseacurev 2
@@ -174,7 +178,17 @@ gseaplot2(gsea_reactome, geneSetID = "R-HSA-72695", title = "Formation of the te
 
 gseaplot2(gsea_reactome, geneSetID = 1:5)
 
+#############
+# simplify
+gsea_go_simplified <- simplify(gsea_go, cutoff = 0.7, by = "p.adjust", select_fun = min)
+gsea_mf_simplified <- simplify(gsea_mf, cutoff = 0.7, by = "p.adjust", select_fun = min)
 
+dotplot(gsea_go_simplified, showCategory = 20, color = "NES") + theme_minimal()
+dotplot(gsea_mf_simplified, showCategory = 20, color = "NES") + theme_minimal()
+
+gsea_go_simplified <- pairwise_termsim(gsea_go_simplified)
+emapplot(gsea_go_simplified, showCategory = 30)
+########
 # msigdb gsea
 # SYMBOL-based gene list (for Hallmark)
 # symbol duplicated 2
@@ -195,7 +209,7 @@ gsea_hallmark <- GSEA(geneList = gene_list_symbol,
                       verbose = FALSE)
 
 dotplot(gsea_hallmark, showCategory = 20, color = "NES") + theme_minimal()
-cnetplot(gsea_hallmark, foldChange = gene_list_symbol, showCategory = 3)
+cnetplot(gsea_hallmark, foldChange = gene_list_symbol, showCategory = 6)
 heatplot(gsea_hallmark, foldChange = gene_list_symbol, showCategory = 5)
 heatplot(gsea_hallmark,
          foldChange = gene_list_symbol,
@@ -204,7 +218,21 @@ heatplot(gsea_hallmark,
            "HALLMARK_TGF_BETA_SIGNALING",
            "HALLMARK_KRAS_SIGNALING_DN"
          ))
+# shorter
+top_genes <- sort(abs(gene_list_symbol), decreasing = TRUE)[1:100]
+heatplot(gsea_hallmark,
+         foldChange = gene_list_symbol[names(top_genes)],
+         showCategory = c(
+           "HALLMARK_OXIDATIVE_PHOSPHORYLATION",
+           "HALLMARK_TGF_BETA_SIGNALING",
+           "HALLMARK_KRAS_SIGNALING_DN"
+         ))
 
+summary(gene_list_symbol[names(top_genes)])
+
+# gene info 
+gseaplot2(gsea_hallmark, geneSetID = 1:5)
+gseaplot2(gsea_hallmark, geneSetID = 1:3)
 
 ###############
 # heatmap directionality on hallmark paths
@@ -220,7 +248,7 @@ hallmark_results <- as.data.frame(gsea_hallmark) %>% mutate(
 
 ggplot(hallmark_results, aes(x = 1, y = reorder(Description, NES), fill = NES)) +
   geom_tile(color = "white", linewidth = 0.4) +
-  geom_text(aes(label = significance), size = 4, vjust = 0.75) +
+  geom_text(aes(label = significance), size = 5, vjust = 0.75) +
   scale_fill_gradient2(
     low = "steelblue", mid = "white", high = "firebrick",
     midpoint = 0, name = "NES"
@@ -230,9 +258,7 @@ ggplot(hallmark_results, aes(x = 1, y = reorder(Description, NES), fill = NES)) 
     axis.text.x  = element_blank(),
     axis.ticks.x = element_blank(),
     axis.title   = element_blank(),
-    panel.grid   = element_blank()
-  ) +
-  labs(title = "Hallmark Pathways – OC vs RC")
+    panel.grid   = element_blank())
 
 
 # save gsea
@@ -368,7 +394,12 @@ hallmark_ovary_results <- as.data.frame(gsea_hallmark_ovary) %>%
          Description = gsub("HALLMARK_", "", Description),
          Description = gsub("_", " ", Description)) %>% arrange(NES)
 
-ggplot(hallmark_ovary_results, aes(x = 1, y = reorder(Description, NES), fill = NES)) +
+hallmark_ovary_results_plot <- hallmark_ovary_results %>%
+  group_by(direction) %>%
+  slice_max(order_by = abs(NES), n = 8) %>%
+  ungroup()
+
+ggplot(hallmark_ovary_results_plot, aes(x = 1, y = reorder(Description, NES), fill = NES)) +
   geom_tile(color = "white", linewidth = 0.4) +
   geom_text(aes(label = significance), size = 4, vjust = 0.75) +
   scale_fill_gradient2(
@@ -380,9 +411,7 @@ ggplot(hallmark_ovary_results, aes(x = 1, y = reorder(Description, NES), fill = 
     axis.text.x  = element_blank(),
     axis.ticks.x = element_blank(),
     axis.title   = element_blank(),
-    panel.grid   = element_blank()
-  ) +
-  labs(title = "Hallmark Pathways – OCCC vs Normal Ovary")
+    panel.grid   = element_blank())
 
 
 
@@ -520,7 +549,7 @@ write_xlsx(list(Up_kinases = up_kinases,
                 KEGG_up_kinase = as.data.frame(kegg_up_kinase),
                 KEGG_down_kinase = as.data.frame(kegg_down_kinase),
                 Reactome_up_kinase = as.data.frame(reactome_up_kinase),
-                Reactome_down_kinase = as.data.frame(reactome_down_kinase)), "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary/Kinase_analysis.xlsx")
+                Reactome_down_kinase = as.data.frame(reactome_down_kinase)), "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary/Kinase_ORA_transcriptomics_analysis.xlsx")
 
 
 

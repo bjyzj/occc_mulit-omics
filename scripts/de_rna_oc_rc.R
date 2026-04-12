@@ -465,6 +465,3 @@ sum(duplicated(tpm_SD1_OC_mRNA$Geneid))
 
 
 
-
-
-

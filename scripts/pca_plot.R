@@ -12,12 +12,20 @@ expr_mat_ovary_only <- readRDS("/Users/beyzaerkal/Desktop/occc_multi-omics/proce
 
 pca <- prcomp(t(expr_mat), scale. = TRUE)
 
+plot(pca, type = "l") # scree plot
+summary(pca)
+summary(pca)$importance[2, 1:2] # variance proportion pc1 and pc2 = (pca$sdev^2) / sum(pca$sdev^2)
+# top genes show transcriptional differences
+head(pca$rotation[,1])
+head(pca$rotation[,2])
+
 pca_df <- data.frame(PC1 = pca$x[,1], PC2 = pca$x[,2], sample_info)
 
 ggplot(pca_df, aes(PC1, PC2, color = Tissue, shape = SourceType)) +
   geom_point(size = 3) +
   theme_minimal()
 
+# Assuming multivariate normal distribution for the ellipses. 
 # change the label name
 mapping <- c("GTEx_Ovary" = "Normal Ovary", "GTEx_Renal_Cortex" = "Normal Renal Cortex")
 sample_info <- sample_info %>% mutate(across(c(Study, Group), ~ recode(.x, !!!mapping)))

@@ -18,7 +18,8 @@ set.seed(123)
 
 ## Load data
 DEProt <- read_csv("/Users/beyzaerkal/Desktop/occc_multi-omics/results/proteomics_results/DE_OCCC_vs_ccRCC_proteomics_qn.csv")
-
+#MSigDB
+hallmark_gmt <- read.gmt("/Users/beyzaerkal/Desktop/internship/internship_env/h.all.v2026.1.Hs.symbols.gmt")
 # ORA
 results <- DEProt 
 
@@ -137,11 +138,65 @@ dotplot(gsea_reactome, showCategory = 20, color = "NES") + theme_minimal()
 #require(DOSE)
 dotplot(gsea_reactome, showCategory=10, split=".sign") + facet_grid(.~.sign)
 
+
+# msigdb
+hallmark <- data.frame(gs_name = hallmark_gmt$term, gene_symbol = hallmark_gmt$gene)
+
+all_merged_unique <- results_mapped %>%
+  group_by(Geneid) %>%
+  slice_max(order_by = abs(t), n = 1, with_ties = FALSE) %>%
+  ungroup()
+
+gene_list_symbol <- all_merged_unique$logFC
+names(gene_list_symbol) <- all_merged_unique$Geneid
+gene_list_symbol <- sort(gene_list_symbol, decreasing = TRUE)
+sum(duplicated(names(gene_list_symbol)))  
+
+
+# hallmark
+gsea_hallmark <- GSEA(geneList = gene_list_symbol,
+                      TERM2GENE = hallmark,
+                      minGSSize = 10,
+                      pvalueCutoff = 0.05,
+                      verbose = FALSE)
+
+dotplot(gsea_hallmark, showCategory = 20, color = "NES") + theme_minimal()
+cnetplot(gsea_hallmark, foldChange = gene_list_symbol, showCategory = 6)
+
+
+# barplot
+hallmark_results <- as.data.frame(gsea_hallmark) %>% mutate(
+  direction = ifelse(NES > 0, "Up", "Down"),
+  significance = case_when(p.adjust < 0.001 ~ "***",
+                           p.adjust < 0.01 ~ "**",
+                           p.adjust < 0.05 ~ "*",
+                           TRUE ~ ""),
+  Description = gsub("HALLMARK_", "", Description),
+  Description = gsub("_", " ", Description)) %>% arrange(NES)  
+
+ggplot(hallmark_results, aes(x = 1, y = reorder(Description, NES), fill = NES)) +
+  geom_tile(color = "white", linewidth = 0.4) +
+  geom_text(aes(label = significance), size = 5, vjust = 0.75) +
+  scale_fill_gradient2(
+    low = "steelblue", mid = "white", high = "firebrick",
+    midpoint = 0, name = "NES"
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    axis.text.x  = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title   = element_blank(),
+    panel.grid   = element_blank())
+
+
+
+
 # save gsea
 write_xlsx(list(GO_BP = as.data.frame(gsea_go),
                 GO_MF = as.data.frame(gsea_mf),
                 KEGG = as.data.frame(gsea_kegg),
-                Reactome = as.data.frame(gsea_reactome)), "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary/GSEA_Prot_OCvsRC_results.xlsx")
+                Reactome = as.data.frame(gsea_reactome),
+                Hallmark_MSigDB = as.data.frame(gsea_hallmark)), "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary/GSEA_Prot_OCvsRC_results.xlsx")
 
 
 
