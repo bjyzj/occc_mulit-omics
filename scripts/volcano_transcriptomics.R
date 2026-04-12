@@ -51,9 +51,9 @@ v1 <- ggplot(DE_OCvsRC, aes(x = logFC,
                "Down" = "navyblue",
                "Not Significant" = "grey70"),
     labels = c(
-      "Upregulated\n(FDR < 0.05, log2FC > 1)",
-      "Downregulated\n(FDR < 0.05, log2FC < -1)",
-      "Not significant"
+      "Up" = "Upregulated\n(FDR < 0.05, log2FC > 0.3)",
+      "Down" = "Downregulated\n(FDR < 0.05, log2FC < -0.3)",
+      "Not Significant" = "Not significant"
     )
   ) +
   geom_vline(xintercept = c(-fc_thresh, fc_thresh),
@@ -128,9 +128,9 @@ v2 <- ggplot(DE_OCvsGTExOV, aes(x = logFC,
                "Down" = "navyblue",
                "Not Significant" = "grey70"),
     labels = c(
-      "Upregulated\n(FDR < 0.05, log2FC > 1)",
-      "Downregulated\n(FDR < 0.05, log2FC < -1)",
-      "Not significant"
+      "Up" = "Upregulated\n(FDR < 0.05, log2FC > 0.3)",
+      "Down" = "Downregulated\n(FDR < 0.05, log2FC < -0.3)",
+      "Not Significant" = "Not significant"
     )
   ) +
   geom_vline(xintercept = c(-fc_thresh, fc_thresh),
