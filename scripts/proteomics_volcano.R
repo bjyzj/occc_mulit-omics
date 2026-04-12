@@ -22,7 +22,7 @@ table(volcano_df$Significant)
 ggplot(volcano_df, aes(x = logFC, y = -log10(adj.P.Val), color = Significant)) +
   geom_point(alpha = 0.6, size = 1.5) +
   scale_color_manual(values = c("Up" = "deeppink4",
-                                "Down" = "dodgerblue4",
+                                "Down" = "dodgerblue4", 
                                 "Not Significant" = "grey70")) +
   geom_vline(xintercept = c(-fc_thresh, fc_thresh), linetype = "dashed") +
   geom_hline(yintercept = -log10(fdr_thresh), linetype = "dashed") +
@@ -47,9 +47,9 @@ v3 <- ggplot(volcano_df, aes(x = logFC,
                "Down" = "dodgerblue4",
                "Not Significant" = "grey70"),
     labels = c(
-      "Upregulated\n(FDR < 0.05, log2FC > 0.3)",
-      "Downregulated\n(FDR < 0.05, log2FC < -0.3)",
-      "Not significant"
+      "Up" = "Upregulated\n(FDR < 0.05, log2FC > 0.3)",
+      "Down" = "Downregulated\n(FDR < 0.05, log2FC < -0.3)",
+      "Not Significant" = "Not significant"
     )
   ) +
   geom_vline(xintercept = c(-fc_thresh, fc_thresh),
