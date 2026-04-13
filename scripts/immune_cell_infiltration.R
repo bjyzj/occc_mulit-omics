@@ -395,7 +395,14 @@ param <- GSVA::ssgseaParam(
 )
 
 ssgsea_scores <- gsva(param)
+colnames(ssgsea_scores)
 
+
+ssgsea_scores_df <- as.data.frame(ssgsea_scores)
+ssgsea_scores_df$Pathways <- rownames(ssgsea_scores_df)
+ssgsea_scores_df <- ssgsea_scores_df[, c("Pathways", setdiff(colnames(ssgsea_scores_df), "Pathways"))]
+rownames(ssgsea_scores_df) <- NULL
+#write.csv(ssgsea_scores_df, "/Users/beyzaerkal/Desktop/occc_multi-omics/processed/ssgsea_scores.csv", row.names = FALSE)
 
 df_ssgsea <- as.data.frame(ssgsea_scores) %>%
   rownames_to_column("Pathway") %>%
@@ -438,3 +445,25 @@ pheatmap(cor_imm_path,
          clustering_distance_cols = "correlation")
 
 # size 9 to 5.50
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
