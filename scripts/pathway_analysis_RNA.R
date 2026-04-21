@@ -8,6 +8,7 @@ library(ggplot2)
 library(readxl)
 library(writexl)
 library(pheatmap)
+library(circlize)
 #library(msigdbr)
 #suppressPackageStartupMessages(library(ExperimentHub))
 #suppressPackageStartupMessages(library(GSEABase))
@@ -18,8 +19,16 @@ DE_OCvsRC <- read_csv("/Users/beyzaerkal/Desktop/occc_multi-omics/results/transc
 DE_OCvsGTExOV <- read_csv("/Users/beyzaerkal/Desktop/occc_multi-omics/results/transcriptomics_results/DE_results_OCCC_vs_GTEx_Ovary_ratio.csv")
 #MSigDB
 hallmark <- read.gmt("/Users/beyzaerkal/Desktop/internship/internship_env/h.all.v2026.1.Hs.symbols.gmt")
+c7_msig <- read.gmt("/Users/beyzaerkal/Desktop/internship/internship_env/c7.all.v2026.1.Hs.symbols.gmt") # immunological
+c6_msig <- read.gmt("/Users/beyzaerkal/Desktop/internship/internship_env/c6.all.v2026.1.Hs.symbols.gmt") # oncogenic
+c3_msig <- read.gmt("/Users/beyzaerkal/Desktop/internship/internship_env/c3.tft.v2026.1.Hs.symbols.gmt") # TFT
+
 #####################
 # OC vs RC ORA
+gplot(DE_OCvsGTExOV, aes(x = logFC)) +
+  geom_histogram(bins = 50) +
+  theme_minimal() +
+  labs(x = "logFC", y = "Gene count", title = "Distribution of logFC (OCCC vs GTEx ovary)")
 
 DE_OCvsRC$SYMBOL <- DE_OCvsRC$Geneid
 
@@ -188,6 +197,9 @@ dotplot(gsea_mf_simplified, showCategory = 20, color = "NES") + theme_minimal()
 
 gsea_go_simplified <- pairwise_termsim(gsea_go_simplified)
 emapplot(gsea_go_simplified, showCategory = 30)
+
+emapplot(pairwise_termsim(gsea_reactome), showCategory=30)
+
 ########
 # msigdb gsea
 # SYMBOL-based gene list (for Hallmark)
@@ -290,6 +302,250 @@ heatplot(gsea_reactome_readable, foldChange = gene_list, showCategory = 5)
 cnetplot(gsea_reactome_readable, foldChange = gene_list, showCategory = 5)
 
 
+#############
+# leading edge genes - core enrichemnt
+kegg_res <- as.data.frame(gsea_kegg)
+kegg_res %>% dplyr::select(ID, Description, NES, p.adjust, core_enrichment)
+# one path
+ids <- strsplit(kegg_res$core_enrichment[1], "/")[[1]]
+
+bitr(ids,
+     fromType = "ENTREZID",
+     toType = "SYMBOL",
+     OrgDb = org.Hs.eg.db)
+
+# get top negative 
+neg_kegg <- kegg_res %>%
+  filter(NES < 0, p.adjust < 0.05)
+
+neg_kegg %>% dplyr::select(Description, NES, core_enrichment)
+
+neg_genes <- neg_kegg %>%
+  as_tibble() %>%
+  dplyr::select(Description, core_enrichment) %>%
+  tidyr::separate_rows(core_enrichment, sep = "/") %>%
+  dplyr::rename(ENTREZID = core_enrichment)
+
+
+symbols <- bitr(neg_genes$ENTREZID,
+                fromType="ENTREZID",
+                toType="SYMBOL",
+                OrgDb=org.Hs.eg.db)
+
+neg_genes <- left_join(neg_genes, symbols, by="ENTREZID")
+
+# recurrign drivers
+neg_genes %>%
+  count(SYMBOL, sort = TRUE)
+
+as.data.frame(gsea_kegg) %>%
+  filter(NES < 0, p.adjust < 0.05) %>%
+  select(Description, NES, core_enrichment)
+
+neg_genes %>%
+  count(SYMBOL, sort=TRUE) %>%
+  slice_head(n=20) %>%
+  ggplot(aes(n, reorder(SYMBOL, n))) +
+  geom_col(fill="steelblue") +
+  labs(x="Pathway recurrence", y="Gene")
+
+
+# check the genes that appeared if tehya re diffenrtilly expressed
+DE_OCvsRC %>%
+  filter(Geneid %in% c("PRKACA","AKT3","ADCY5"))
+# candidate driver table
+tribble(
+  ~Gene, ~logFC, ~Role,
+  "PRKACA",-1.42,"PKA catalytic signaling",
+  "AKT3",-1.53,"PI3K/AKT signaling",
+  "ADCY5",-1.01,"cAMP production"
+)
+
+# hallmark leadign edge
+hallmark_res <- as.data.frame(gsea_hallmark)
+
+neg_hallmark <- hallmark_res %>%
+  filter(NES < 0, p.adjust < 0.05)
+
+neg_hallmark_genes <- neg_hallmark %>%
+  dplyr::select(Description, core_enrichment) %>%
+  tidyr::separate_rows(core_enrichment, sep="/") %>%
+  dplyr::rename(SYMBOL = core_enrichment)
+
+# recurrign hallmakrs
+neg_hallmark_genes %>%
+  count(SYMBOL, sort=TRUE)
+
+neg_hallmark_genes %>%
+  count(SYMBOL, sort=TRUE) %>%
+  slice_head(n=20) %>%
+  ggplot(aes(n, reorder(SYMBOL, n))) +
+  geom_col(fill="steelblue") +
+  labs(x="Hallmark recurrence", y="Gene")
+
+# reactoem leaidng edge
+
+
+reactome_res <- as.data.frame(gsea_reactome)
+
+neg_reactome <- reactome_res %>%
+  filter(NES < 0, p.adjust < 0.05)
+
+neg_reactome_genes <- neg_reactome %>%
+  dplyr::select(Description, core_enrichment) %>%
+  tidyr::separate_rows(core_enrichment, sep="/") %>%
+  dplyr::rename(ENTREZID = core_enrichment)
+
+
+symbols <- bitr(
+  neg_reactome_genes$ENTREZID,
+  fromType="ENTREZID",
+  toType="SYMBOL",
+  OrgDb=org.Hs.eg.db
+)
+
+neg_reactome_genes <- left_join(
+  neg_reactome_genes,
+  symbols,
+  by="ENTREZID"
+)
+
+neg_reactome_genes %>%
+  count(SYMBOL, sort=TRUE)
+
+neg_reactome_genes %>%
+  count(SYMBOL, sort=TRUE) %>%
+  slice_head(n=20) %>%
+  ggplot(aes(n, reorder(SYMBOL, n))) +
+  geom_col(fill="steelblue") +
+  labs(x="Hallmark recurrence", y="Gene")
+
+
+
+####################
+# GAINS - leading edge
+####################
+
+
+# kegg
+# POSITIVE KEGG leading-edge genes (higher in OCCC vs ccRCC)
+
+kegg_res <- as.data.frame(gsea_kegg)
+
+kegg_res %>%
+  dplyr::select(ID, Description, NES, p.adjust, core_enrichment)
+
+# one positive pathway example
+ids <- strsplit(
+  kegg_res$core_enrichment[which(kegg_res$NES > 0)[1]],
+  "/"
+)[[1]]
+
+bitr(ids,
+     fromType = "ENTREZID",
+     toType = "SYMBOL",
+     OrgDb = org.Hs.eg.db)
+
+pos_kegg <- kegg_res %>%
+  dplyr::filter(NES > 0, p.adjust < 0.05)
+
+pos_kegg %>%
+  dplyr::select(Description, NES, core_enrichment)
+
+# extract leading-edge genes
+pos_genes <- pos_kegg %>%
+  tibble::as_tibble() %>%
+  dplyr::select(Description, core_enrichment) %>%
+  tidyr::separate_rows(core_enrichment, sep = "/") %>%
+  dplyr::rename(ENTREZID = core_enrichment)
+
+symbols <- bitr(pos_genes$ENTREZID,
+                fromType = "ENTREZID",
+                toType = "SYMBOL",
+                OrgDb = org.Hs.eg.db)
+
+pos_genes <- dplyr::left_join(pos_genes, symbols, by = "ENTREZID")
+
+# recurring positive drivers
+pos_genes %>%
+  count(SYMBOL, sort = TRUE)
+
+as.data.frame(gsea_kegg) %>%
+  dplyr::filter(NES > 0, p.adjust < 0.05) %>%
+  dplyr::select(Description, NES, core_enrichment)
+
+pos_genes %>%
+  count(SYMBOL, sort = TRUE) %>%
+  slice_head(n = 20) %>%
+  ggplot(aes(n, reorder(SYMBOL, n))) +
+  geom_col(fill = "firebrick") +
+  labs(x = "Pathway recurrence", y = "Gene")
+
+##############
+#hallmakr positive
+hallmark_res <- as.data.frame(gsea_hallmark)
+
+pos_hallmark <- hallmark_res %>%
+  dplyr::filter(NES > 0, p.adjust < 0.05)
+
+pos_hallmark_genes <- pos_hallmark %>%
+  dplyr::select(Description, core_enrichment) %>%
+  tidyr::separate_rows(core_enrichment, sep = "/") %>%
+  dplyr::rename(SYMBOL = core_enrichment)
+
+pos_hallmark_genes %>%
+  count(SYMBOL, sort = TRUE)
+
+pos_hallmark_genes %>%
+  count(SYMBOL, sort = TRUE) %>%
+  slice_head(n = 20) %>%
+  ggplot(aes(n, reorder(SYMBOL, n))) +
+  geom_col(fill = "firebrick") +
+  labs(x = "Hallmark recurrence (positive NES)", y = "Gene")
+
+################
+# reactome positive
+
+reactome_res <- as.data.frame(gsea_reactome)
+
+pos_reactome <- reactome_res %>%
+  dplyr::filter(NES > 0, p.adjust < 0.05)
+
+pos_reactome_genes <- pos_reactome %>%
+  dplyr::select(Description, core_enrichment) %>%
+  tidyr::separate_rows(core_enrichment, sep = "/") %>%
+  dplyr::rename(ENTREZID = core_enrichment)
+
+symbols <- bitr(
+  pos_reactome_genes$ENTREZID,
+  fromType = "ENTREZID",
+  toType = "SYMBOL",
+  OrgDb = org.Hs.eg.db
+)
+
+pos_reactome_genes <- left_join(
+  pos_reactome_genes,
+  symbols,
+  by = "ENTREZID"
+)
+
+# recurring positive drivers
+pos_reactome_genes %>%
+  count(SYMBOL, sort = TRUE)
+
+# top recurring genes plot
+pos_reactome_genes %>%
+  count(SYMBOL, sort = TRUE) %>%
+  slice_head(n = 20) %>%
+  ggplot(aes(n, reorder(SYMBOL, n))) +
+  geom_col(fill = "firebrick") +
+  labs(x = "Reactome recurrence (positive NES)", y = "Gene")
+
+###############
+
+
+###########
+
 # extracting common pathways of OCCC and ccRCC (NES=0)
 
 go_res <- as.data.frame(gsea_go)
@@ -306,10 +562,229 @@ shared_reactome <- reactome_res %>%
   filter(p.adjust < 0.05 & abs(NES) < 1)
 
 
+###########################
+# gsea vertical col bar plots
+###########################
+go_df <- as.data.frame(gsea_go)[, c("ID", "Description", "NES", "p.adjust")]
+go_df$DB <- "GO_BP"
+
+kegg_df <- as.data.frame(gsea_kegg)[, c("ID", "Description", "NES", "p.adjust")]
+kegg_df$DB <- "KEGG"
+
+react_df <- as.data.frame(gsea_reactome)[, c("ID", "Description", "NES", "p.adjust")]
+react_df$DB <- "REACTOME"
+
+get_top_paths <- function(df, n = 5) {
+  
+  up <- df %>%
+    filter(NES > 0) %>%
+    arrange(p.adjust) %>%
+    head(n)
+  
+  down <- df %>%
+    filter(NES < 0) %>%
+    arrange(p.adjust) %>%
+    head(n)
+  
+  bind_rows(up, down)
+}
+
+top_go <- get_top_paths(go_df, 10)
+top_kegg <- get_top_paths(kegg_df, 10)
+top_reactome <- get_top_paths(react_df, 10)
+
+top_go$DB <- "GO_BP"
+top_kegg$DB <- "KEGG"
+top_reactome$DB <- "REACTOME"
+
+gsea_top_all <- bind_rows(top_go, top_kegg, top_reactome)
+
+top_kegg$Direction <- ifelse(top_kegg$NES > 0,
+                             "Upregulated in OCCC",
+                             "Downregulated in OCCC")
+
+ggplot(top_kegg,
+       aes(x = NES,
+           y = reorder(Description, NES),
+           fill = Direction)) +
+  geom_col(width = 0.5) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  theme_bw() + scale_fill_manual(values = c(
+    "Upregulated in OCCC" = "firebrick",
+    "Downregulated in OCCC" = "steelblue"
+  )) +
+  labs(x = "NES", y = "Pathway", fill = "Enrichment direction")
+
+#reactome
+top_reactome$Direction <- ifelse(top_reactome$NES > 0,
+                             "Upregulated in OCCC",
+                             "Downregulated in OCCC")
+
+ggplot(top_reactome,
+       aes(x = NES,
+           y = reorder(Description, NES),
+           fill = Direction)) +
+  geom_col(width = 0.5) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  theme_bw() + scale_fill_manual(values = c(
+    "Upregulated in OCCC" = "firebrick",
+    "Downregulated in OCCC" = "steelblue"
+  )) +
+  labs(x = "NES", y = "Pathway", fill = "Enrichment direction")
+
+
+top_go$Direction <- ifelse(top_go$NES > 0,
+                                 "Upregulated in OCCC",
+                                 "Downregulated in OCCC")
+
+ggplot(top_go,
+       aes(x = NES,
+           y = reorder(Description, NES),
+           fill = Direction)) +
+  geom_col(width = 0.5) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  theme_bw() + scale_fill_manual(values = c(
+    "Upregulated in OCCC" = "firebrick",
+    "Downregulated in OCCC" = "steelblue"
+  )) +
+  labs(x = "NES", y = "Pathway", fill = "Enrichment direction")
+
+##########################################
+# OCCC vs ccRCC c6_msig - oncogenic pathway
+##########################################
+
+gsea_c6 <- GSEA(
+  geneList  = gene_list_symbol,
+  TERM2GENE = c6_msig,
+  minGSSize = 10,
+  maxGSSize = 500,
+  pvalueCutoff= 0.05,
+  verbose = FALSE,
+  seed= TRUE
+)
+
+head(as.data.frame(gsea_c6))
+
+dotplot(gsea_c6, showCategory = 20, color = "NES") + theme_minimal() +
+gseaplot2(gsea_c6, geneSetID = 1:5)
+
+# cleaner patwhasy names
+c6_res <- as.data.frame(gsea_c6) %>%
+  mutate(
+    Direction = ifelse(NES > 0, "Up in OCCC", "Down in OCCC"),
+    Description = gsub("_", " ", Description)
+  )
+
+# top enriched 6 
+top_c6 <- c6_res %>%
+  filter(p.adjust < 0.05) %>%
+  arrange(desc(abs(NES))) %>%
+  slice_head(n = 15)
+
+ggplot(top_c6,
+       aes(NES, reorder(Description, NES), fill = Direction)) +
+  geom_col() +
+  geom_vline(xintercept = 0, linetype = 2) +
+  theme_bw() +
+  labs(y = "", x = "NES")
+
+# core enriched genes
+c6_res %>% dplyr::select(Description, NES, p.adjust, core_enrichment) %>% head()
+
+############################################
+# OCCC vs ccRCC c7_msig - immunological pathways/signatures
+#############################################
+
+gsea_c7 <- GSEA(
+  geneList  = gene_list_symbol,
+  TERM2GENE = c7_msig,
+  minGSSize = 10,
+  maxGSSize = 500,
+  pvalueCutoff= 0.05,
+  verbose = FALSE,
+  seed= TRUE
+)
+
+head(as.data.frame(gsea_c7))
+
+dotplot(gsea_c7, showCategory = 20, color = "NES") + theme_minimal()
+gseaplot2(gsea_c7, geneSetID = 1:5)
+
+# cleaner pathwas
+c7_res <- as.data.frame(gsea_c7) %>%
+  mutate(
+    Direction = ifelse(NES > 0, "Up in OCCC", "Down in OCCC"),
+    Description = gsub("_", " ", Description)
+  )
+
+top_c7 <- c7_res %>%
+  filter(p.adjust < 0.05) %>%
+  arrange(desc(abs(NES))) %>%
+  slice_head(n = 15)
+
+ggplot(top_c7,
+       aes(NES, reorder(Description, NES), fill = Direction)) +
+  geom_col() +
+  geom_vline(xintercept = 0, linetype = 2) +
+  theme_bw() +
+  labs(title = "Top Immunologic Signatures (C7)",
+       y = "", x = "NES")
+
+# core enriched genes
+c7_res %>% dplyr::select(Description, NES, p.adjust, core_enrichment) %>% head()
+
+
+#################
+# OCCC vs ccRCC - C3 TFT 
+#################
+gsea_c3 <- GSEA(
+  geneList= gene_list_symbol,
+  TERM2GENE = c3_msig,
+  minGSSize = 10,
+  maxGSSize = 500,
+  pvalueCutoff= 0.05,
+  verbose = FALSE,
+  seed= TRUE
+)
+
+head(as.data.frame(gsea_c3))
+
+dotplot(gsea_c3, showCategory = 20, color = "NES") + theme_minimal()
+gseaplot2(gsea_c3, geneSetID = 1:5)
+
+# cleaner pathwas
+c3_res <- as.data.frame(gsea_c3) %>%
+  mutate(
+    Direction = ifelse(NES > 0, "Up in OCCC", "Down in OCCC"),
+    Description = gsub("_", " ", Description)
+  )
+
+top_c3 <- c3_res %>%
+  filter(p.adjust < 0.05) %>%
+  arrange(desc(abs(NES))) %>%
+  slice_head(n = 15)
+
+ggplot(top_c3,
+       aes(NES, reorder(Description, NES), fill = Direction)) +
+  geom_col() +
+  geom_vline(xintercept = 0, linetype = 2) +
+  theme_bw() +
+  labs(title = "Top Immunologic Signatures (C3)",
+       y = "", x = "NES")
+
+# core enriched genes
+c3_res %>% dplyr::select(Description, NES, p.adjust, core_enrichment) %>% head()
+
+
+
+write_xlsx(list(C6_Oncogenic_OCvsRC= as.data.frame(gsea_c6), C7_Immunologic_OCvsRC = as.data.frame(gsea_c7), C3_TFTs_OCvsRC = as.data.frame(gsea_c3)),
+  "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary/GSEA_C3_C6_C7_OCvsRC.xlsx")
+
 ################################
 
 # OCCC vs GTEx normal ovary GSEA
 
+################################
 all_ovary_genes <- DE_OCvsGTExOV
 all_ovary_genes$SYMBOL <- all_ovary_genes$Geneid
 
@@ -365,8 +840,9 @@ dotplot(gsea_reactome_ovary, showCategory = 20, color = "NES") + theme_minimal()
 #gseacurve3
 gseaplot2(gsea_reactome_ovary, geneSetID = "R-HSA-373076", title = "Class A/1 (Rhodopsin-like receptors)")
 
-
+#########################
 # msigdb gsea ovary
+#########################
 
 all_ovary_merged_unique <- all_ovary_merged %>%
   group_by(SYMBOL) %>%
@@ -420,6 +896,136 @@ write_xlsx(list(GO_BP = as.data.frame(gsea_go_ovary),
                 KEGG = as.data.frame(gsea_kegg_ovary),
                 Reactome = as.data.frame(gsea_reactome_ovary),
                 Hallmark_MSigDB = as.data.frame(gsea_hallmark_ovary)), "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary/GSEA_OCvsOVARY_RNA_results.xlsx")
+
+########################
+
+##########################################
+# OCCC vs Ovary c6_msig - oncogenic pathway
+##########################################
+
+gsea_c6_ovary <- GSEA(
+  geneList= gene_list_ovary_symbol,
+  TERM2GENE = c6_msig,
+  minGSSize = 10,
+  maxGSSize = 500,
+  pvalueCutoff= 0.05,
+  verbose = FALSE,
+  seed= TRUE)
+
+head(as.data.frame(gsea_c6_ovary))
+
+dotplot(gsea_c6_ovary, showCategory = 20, color = "NES") + theme_minimal() 
+gseaplot2(gsea_c6_ovary, geneSetID = 1:5)
+
+# cleaner patwhasy names
+c6_res_ovary <- as.data.frame(gsea_c6_ovary) %>%
+  mutate(
+    Direction = ifelse(NES > 0, "Up in OCCC", "Down in OCCC"),
+    Description = gsub("_", " ", Description))
+
+# top enriched 6 
+top_c6_ovary <- c6_res_ovary %>%
+  filter(p.adjust < 0.05) %>%
+  arrange(desc(abs(NES))) %>%
+  slice_head(n = 15)
+
+ggplot(top_c6_ovary,
+       aes(NES, reorder(Description, NES), fill = Direction)) +
+  geom_col() +
+  geom_vline(xintercept = 0, linetype = 2) +
+  theme_bw() +
+  labs(y = "", x = "NES")
+
+# core enriched genes
+c6_res_ovary %>% dplyr::select(Description, NES, p.adjust, core_enrichment) %>% head()
+
+############################################
+# OCCC vs Ovary c7_msig - immunological pathways/signatures
+#############################################
+
+gsea_c7_ovary <- GSEA(geneList = gene_list_ovary_symbol,
+                TERM2GENE = c7_msig,
+                minGSSize = 10,
+                maxGSSize = 500,
+                pvalueCutoff= 0.05,
+                verbose = FALSE,
+                seed= TRUE)
+
+head(as.data.frame(gsea_c7_ovary))
+
+dotplot(gsea_c7_ovary, showCategory = 20, color = "NES") + theme_minimal()
+gseaplot2(gsea_c7_ovary, geneSetID = 1:5)
+
+# cleaner pathwas
+c7_res_ovary <- as.data.frame(gsea_c7_ovary) %>%
+  mutate(Direction = ifelse(NES > 0, "Up in OCCC", "Down in OCCC"),
+         Description = gsub("_", " ", Description))
+
+top_c7_ovary <- c7_res_ovary %>%
+  filter(p.adjust < 0.05) %>%
+  arrange(desc(abs(NES))) %>%
+  slice_head(n = 15)
+
+ggplot(top_c7_ovary,
+       aes(NES, reorder(Description, NES), fill = Direction)) +
+  geom_col() +
+  geom_vline(xintercept = 0, linetype = 2) +
+  theme_bw() +
+  labs(title = "Top Immunologic Signatures (C7)",
+       y = "", x = "NES")
+
+# core enriched genes
+c7_res_ovary %>% dplyr::select(Description, NES, p.adjust, core_enrichment) %>% head()
+
+
+#################
+# OCCC vs Ovary - C3 TFT 
+#################
+gsea_c3_ovary <- GSEA(
+  geneList= gene_list_ovary_symbol,
+  TERM2GENE = c3_msig,
+  minGSSize = 10,
+  maxGSSize = 500,
+  pvalueCutoff= 0.05,
+  verbose = FALSE,
+  seed  = TRUE
+)
+
+head(as.data.frame(gsea_c3_ovary))
+
+dotplot(gsea_c3_ovary, showCategory = 20, color = "NES") + theme_minimal()
+gseaplot2(gsea_c3_ovary, geneSetID = 1:5)
+
+# cleaner pathwas
+c3_res_ovary <- as.data.frame(gsea_c3_ovary) %>%
+  mutate(
+    Direction = ifelse(NES > 0, "Up in OCCC", "Down in OCCC"),
+    Description = gsub("_", " ", Description)
+  )
+
+top_c3_ovary <- c3_res_ovary %>%
+  filter(p.adjust < 0.05) %>%
+  arrange(desc(abs(NES))) %>%
+  slice_head(n = 15)
+
+ggplot(top_c3_ovary,
+       aes(NES, reorder(Description, NES), fill = Direction)) +
+  geom_col() +
+  geom_vline(xintercept = 0, linetype = 2) +
+  theme_bw() +
+  labs(title = "Top Immunologic Signatures (C3)",
+       y = "", x = "NES")
+
+# core enriched genes
+c3_res_ovary %>% dplyr::select(Description, NES, p.adjust, core_enrichment) %>% head()
+
+
+
+write_xlsx(list(C6_Oncogenic_OCvsOvary= as.data.frame(gsea_c6_ovary), C7_Immunologic_OCvsOvary = as.data.frame(gsea_c7_ovary), 
+                C3_TFTs_OCvsOvary = as.data.frame(gsea_c3_ovary)),
+           "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary/GSEA_C3_C6_C7_OCvsOvary.xlsx")
+
+
 
 ###########################
 
@@ -487,7 +1093,7 @@ gsea_reactome_shared_readable <- setReadable(
 heatplot(gsea_reactome_shared_readable, foldChange = gene_list, showCategory = 5)
 cnetplot(gsea_reactome_shared_readable, foldChange = gene_list, showCategory = 10)
 
-
+##############################
 
 ###############################
 
@@ -495,6 +1101,7 @@ cnetplot(gsea_reactome_shared_readable, foldChange = gene_list, showCategory = 1
 
 # Kinase genes in OC vs RC
 
+###############################
 # kinase list ( threshold 0.05)
 kinases <- read_excel("/Users/beyzaerkal/Desktop/internship/internship_env/kinase_basic.xlsx", col_names = TRUE)
 colnames(kinases)
@@ -550,6 +1157,129 @@ write_xlsx(list(Up_kinases = up_kinases,
                 KEGG_down_kinase = as.data.frame(kegg_down_kinase),
                 Reactome_up_kinase = as.data.frame(reactome_up_kinase),
                 Reactome_down_kinase = as.data.frame(reactome_down_kinase)), "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary/Kinase_ORA_transcriptomics_analysis.xlsx")
+
+
+
+#################
+# circo plot with directionality
+#################
+up_df   <- as.data.frame(reactome_up_kinase)
+down_df <- as.data.frame(reactome_down_kinase)
+
+# top pathways 
+up_df   <- up_df   %>% arrange(p.adjust) %>% dplyr::slice(1:10)
+down_df <- down_df %>% arrange(p.adjust) %>% dplyr::slice(1:10)
+
+# extract pathway- gene relationships 
+extract_edges <- function(enrich_df, direction){
+  
+  all_edges <- data.frame()
+  
+  for(i in 1:nrow(enrich_df)){
+    
+    pathway_name <- enrich_df$Description[i]
+    
+    ids <- unlist(strsplit(enrich_df$geneID[i], "/"))
+    
+    conv <- bitr(ids,
+                 fromType = "ENTREZID",
+                 toType = "SYMBOL",
+                 OrgDb = org.Hs.eg.db)
+    
+    temp <- data.frame(
+      pathway   = pathway_name,
+      kinase    = unique(conv$SYMBOL),
+      direction = direction
+    )
+    
+    all_edges <- rbind(all_edges, temp)
+  }
+  
+  return(all_edges)
+}
+
+edges_up   <- extract_edges(up_df, "UP")
+edges_down <- extract_edges(down_df, "DOWN")
+
+edges <- bind_rows(edges_up, edges_down)
+
+# only kinase genes
+kinase_symbols <- unique(kinases$Offical_gene_symbol)
+
+edges <- edges %>%
+  filter(kinase %in% kinase_symbols)
+# duplicates managed
+edges <- unique(edges)
+
+# most connected kinases (top 20)
+top_kinases <- edges %>%
+  count(kinase, sort = TRUE) %>%
+  dplyr::slice(1:20) %>%
+  pull(kinase)
+
+edges <- edges %>%
+  filter(kinase %in% top_kinases)
+# colour
+pathways <- unique(edges$pathway)
+genes    <- unique(edges$kinase)
+
+grid.col <- c(
+  setNames(rep("grey40", length(pathways)), pathways),
+  setNames(rep("firebrick", length(genes)), genes)
+)
+
+
+link_cols <- ifelse(edges$direction == "UP",
+                    rgb(1,0,0,0.45),   # red
+                    rgb(0,0,1,0.45))   # blue
+
+circos.clear()
+
+chordDiagram(
+  x = edges[,c("pathway","kinase")],
+  grid.col = grid.col,
+  col = link_cols,
+  annotationTrack = "grid",
+  transparency = 0.25,
+  preAllocateTracks = 1
+)
+
+circos.trackPlotRegion(
+  track.index = 1,
+  panel.fun = function(x, y){
+    
+    sector.name <- get.cell.meta.data("sector.index")
+    xlim <- get.cell.meta.data("xlim")
+    ylim <- get.cell.meta.data("ylim")
+    
+    circos.text(
+      mean(xlim),
+      ylim[1] + 0.1,
+      sector.name,
+      facing = "clockwise",
+      niceFacing = TRUE,
+      adj = c(0,0.5),
+      cex = 0.55
+    )
+  },
+  bg.border = NA
+)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
