@@ -1170,6 +1170,11 @@ down_df <- as.data.frame(reactome_down_kinase)
 up_df   <- up_df   %>% arrange(p.adjust) %>% dplyr::slice(1:10)
 down_df <- down_df %>% arrange(p.adjust) %>% dplyr::slice(1:10)
 
+# wrap long labels
+wrap_lab <- function(x, width = 28){
+  vapply(x, function(z) paste(strwrap(z, width = width), collapse = "\n"), character(1))
+}
+
 # extract pathway- gene relationships 
 extract_edges <- function(enrich_df, direction){
   
@@ -1219,6 +1224,10 @@ top_kinases <- edges %>%
 
 edges <- edges %>%
   filter(kinase %in% top_kinases)
+
+# wrapped labels for pathways only
+edges$pathway <- wrap_lab(edges$pathway, width = 28)
+
 # colour
 pathways <- unique(edges$pathway)
 genes    <- unique(edges$kinase)
@@ -1241,7 +1250,7 @@ chordDiagram(
   col = link_cols,
   annotationTrack = "grid",
   transparency = 0.25,
-  preAllocateTracks = 1
+  preAllocateTracks = list(track.height = 0.18)
 )
 
 circos.trackPlotRegion(
@@ -1254,12 +1263,13 @@ circos.trackPlotRegion(
     
     circos.text(
       mean(xlim),
-      ylim[1] + 0.1,
+      ylim[1] + 0.15,
       sector.name,
       facing = "clockwise",
       niceFacing = TRUE,
       adj = c(0,0.5),
-      cex = 0.55
+      cex = 0.70,
+      font = 2
     )
   },
   bg.border = NA
