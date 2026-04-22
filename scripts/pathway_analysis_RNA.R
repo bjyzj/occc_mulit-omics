@@ -25,7 +25,7 @@ c3_msig <- read.gmt("/Users/beyzaerkal/Desktop/internship/internship_env/c3.tft.
 
 #####################
 # OC vs RC ORA
-gplot(DE_OCvsGTExOV, aes(x = logFC)) +
+ggplot(DE_OCvsGTExOV, aes(x = logFC)) +
   geom_histogram(bins = 50) +
   theme_minimal() +
   labs(x = "logFC", y = "Gene count", title = "Distribution of logFC (OCCC vs GTEx ovary)")
