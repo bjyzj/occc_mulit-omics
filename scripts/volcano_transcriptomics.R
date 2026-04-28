@@ -51,8 +51,8 @@ v1 <- ggplot(DE_OCvsRC, aes(x = logFC,
                "Down" = "navyblue",
                "Not Significant" = "grey70"),
     labels = c(
-      "Up" = "Upregulated\n(FDR < 0.05, log2FC > 0.3)",
-      "Down" = "Downregulated\n(FDR < 0.05, log2FC < -0.3)",
+      "Up" = "Upregulated\n(FDR < 0.05, log2FC > 1)",
+      "Down" = "Downregulated\n(FDR < 0.05, log2FC < -1)",
       "Not Significant" = "Not significant"
     )
   ) +
@@ -128,8 +128,8 @@ v2 <- ggplot(DE_OCvsGTExOV, aes(x = logFC,
                "Down" = "navyblue",
                "Not Significant" = "grey70"),
     labels = c(
-      "Up" = "Upregulated\n(FDR < 0.05, log2FC > 0.3)",
-      "Down" = "Downregulated\n(FDR < 0.05, log2FC < -0.3)",
+      "Up" = "Upregulated\n(FDR < 0.05, log2FC > 1)",
+      "Down" = "Downregulated\n(FDR < 0.05, log2FC < -1)",
       "Not Significant" = "Not significant"
     )
   ) +
