@@ -50,6 +50,7 @@ plot_hallmark <- function(df, title_text){
     theme(
       axis.title=element_blank(),
       axis.text.x=element_blank(),
+      axis.text.y = element_text(face = "bold", size=12),
       axis.ticks.x=element_blank(),
       panel.grid=element_blank()
     )
