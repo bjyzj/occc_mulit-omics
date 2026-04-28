@@ -20,6 +20,10 @@ set.seed(123)
 DEProt <- read_csv("/Users/beyzaerkal/Desktop/occc_multi-omics/results/proteomics_results/DE_OCCC_vs_ccRCC_proteomics_qn.csv")
 #MSigDB
 hallmark_gmt <- read.gmt("/Users/beyzaerkal/Desktop/internship/internship_env/h.all.v2026.1.Hs.symbols.gmt")
+c7_msig <- read.gmt("/Users/beyzaerkal/Desktop/internship/internship_env/c7.all.v2026.1.Hs.symbols.gmt") # immunological
+c6_msig <- read.gmt("/Users/beyzaerkal/Desktop/internship/internship_env/c6.all.v2026.1.Hs.symbols.gmt") # oncogenic
+c3_msig <- read.gmt("/Users/beyzaerkal/Desktop/internship/internship_env/c3.tft.v2026.1.Hs.symbols.gmt") # TFT
+
 # ORA
 results <- DEProt 
 
@@ -138,7 +142,7 @@ dotplot(gsea_reactome, showCategory = 20, color = "NES") + theme_minimal()
 #require(DOSE)
 dotplot(gsea_reactome, showCategory=10, split=".sign") + facet_grid(.~.sign)
 
-
+#################
 # msigdb
 hallmark <- data.frame(gs_name = hallmark_gmt$term, gene_symbol = hallmark_gmt$gene)
 
@@ -200,9 +204,78 @@ write_xlsx(list(GO_BP = as.data.frame(gsea_go),
 
 
 
+
+##########################################
+# c6_msig - oncogenic pathway
+##########################################
+
+gsea_c6 <- GSEA(
+  geneList  = gene_list_symbol,
+  TERM2GENE = c6_msig,
+  minGSSize = 10,
+  maxGSSize = 500,
+  pvalueCutoff= 0.05,
+  verbose = FALSE,
+  seed= TRUE
+)
+
+head(as.data.frame(gsea_c6))
+
+dotplot(gsea_c6, showCategory = 20, color = "NES") + theme_minimal() 
+dotplot(gsea_c6, split = ".sign") + facet_grid(.~.sign)
+
+cnetplot(gsea_c6, foldChange = gene_list_symbol, showCategory = 5)
+
+
+############################################
+# OCCC vs ccRCC c7_msig - immunological pathways/signatures
+#############################################
+
+gsea_c7 <- GSEA(
+  geneList  = gene_list_symbol,
+  TERM2GENE = c7_msig,
+  minGSSize = 10,
+  maxGSSize = 500,
+  pvalueCutoff= 0.05,
+  verbose = FALSE,
+  seed= TRUE
+)
+
+head(as.data.frame(gsea_c7))
+cnetplot(gsea_c7, foldChange = gene_list_symbol, showCategory = 5)
+dotplot(gsea_c7, split = ".sign") + facet_grid(.~.sign)
+
+dotplot(gsea_c7, showCategory = 20, color = "NES") + theme_minimal()
+dotplot(gsea_c7, showCategory = 20, color = "NES", split = ".sign") +
+  facet_grid(. ~ .sign) +
+  theme_minimal()
+
+gseaplot2(gsea_c7, geneSetID = 1:5)
+
+
+#################
+# OCCC vs ccRCC - C3 TFT 
+#################
+gsea_c3 <- GSEA(
+  geneList= gene_list_symbol,
+  TERM2GENE = c3_msig,
+  minGSSize = 10,
+  maxGSSize = 500,
+  pvalueCutoff= 0.5,
+  verbose = FALSE,
+  seed= TRUE
+)
+# appears only at cut of value of 0.5 there is none significant 
+head(as.data.frame(gsea_c3)) # none
+dotplot(gsea_c3, split = ".sign") + facet_grid(.~.sign)
+dotplot(gsea_c3, showCategory = 20, color = "NES") + theme_minimal()
+
+# CEBP
+######################
+
 # KINASE
 
-
+######################
 # kinase list ( threshold 0.05)
 kinases <- read_excel("/Users/beyzaerkal/Desktop/internship/internship_env/kinase_basic.xlsx", col_names = TRUE)
 colnames(kinases)
