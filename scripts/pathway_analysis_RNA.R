@@ -121,11 +121,12 @@ p_down + geom_text(aes(label = Count), hjust = -0.2, size = 3) +
   scale_y_discrete() +
   theme_classic()
 
-#####################
 
 #####################
 # OC vs RC GSEA
 # ranked gene list for GSEA
+#####################
+
 
 all_genes <- DE_OCvsRC
 all_genes$SYMBOL <- all_genes$Geneid
@@ -283,11 +284,7 @@ write_xlsx(list(GO_BP = as.data.frame(gsea_go),
 ###########
 # gene + patwhays relationship heatmap
 ###########
-gsea_go_readable <- setReadable(
-  gsea_go,
-  OrgDb = org.Hs.eg.db,
-  keyType = "ENTREZID"
-)
+gsea_go_readable <- setReadable(gsea_go, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
 
 heatplot(gsea_go_readable, foldChange = gene_list, showCategory = 5)
 cnetplot(gsea_go_readable, foldChange = gene_list, showCategory = 5)
@@ -384,7 +381,6 @@ neg_hallmark_genes %>%
   labs(x="Hallmark recurrence", y="Gene")
 
 # reactoem leaidng edge
-
 
 reactome_res <- as.data.frame(gsea_reactome)
 
@@ -665,31 +661,69 @@ gsea_c6 <- GSEA(
 
 head(as.data.frame(gsea_c6))
 
-dotplot(gsea_c6, showCategory = 20, color = "NES") + theme_minimal() +
+dotplot(gsea_c6, showCategory = 20, color = "NES") + theme_minimal() 
+emapplot(pairwise_termsim(gsea_c6), showCategory=30)
+
 gseaplot2(gsea_c6, geneSetID = 1:5)
+dotplot(gsea_c6, showCategory = 10, color = "NES") +
+  theme_minimal(base_size = 12)
+cnetplot(gsea_c6, foldChange = gene_list_symbol, showCategory = 5)
 
-# cleaner patwhasy names
-c6_res <- as.data.frame(gsea_c6) %>%
-  mutate(
-    Direction = ifelse(NES > 0, "Up in OCCC", "Down in OCCC"),
-    Description = gsub("_", " ", Description)
-  )
+dotplot(gsea_c6, showCategory = 20, color = "NES", split = ".sign") +
+  facet_grid(. ~ .sign) +
+  theme_minimal()
+dotplot(gsea_c6, split = ".sign") + facet_grid(.~.sign)
 
-# top enriched 6 
-top_c6 <- c6_res %>%
+resc6_gsea <- as.data.frame(gsea_c6)
+# split by direction
+occc_pathways_c6 <- resc6_gsea %>%filter(NES > 0, p.adjust < 0.05)
+ccrcc_pathways_c6 <- resc6_gsea %>%filter(NES < 0, p.adjust < 0.05)
+
+# OCCC leading-edge genes - no visual only exploratory
+le_occc_c6 <- occc_pathways_c6 %>%
+  pull(core_enrichment) %>%
+  strsplit("/") %>%
+  unlist() %>%
+  unique()
+
+# ccRCC leading-edge genes
+le_ccrcc_c6 <- ccrcc_pathways_c6 %>%
+  pull(core_enrichment) %>%
+  strsplit("/") %>%
+  unlist() %>%
+  unique()
+
+# pathways gene table
+le_df_c6 <- resc6_gsea %>%
   filter(p.adjust < 0.05) %>%
-  arrange(desc(abs(NES))) %>%
-  slice_head(n = 15)
+  dplyr::select(ID, NES, core_enrichment) %>%
+  separate_rows(core_enrichment, sep = "/") %>%
+  dplyr::rename(gene = core_enrichment)
 
-ggplot(top_c6,
-       aes(NES, reorder(Description, NES), fill = Direction)) +
-  geom_col() +
-  geom_vline(xintercept = 0, linetype = 2) +
-  theme_bw() +
-  labs(y = "", x = "NES")
+# gene frequency
+occc_freq_c6 <- le_df_c6 %>%
+  filter(NES > 0) %>%
+  count(gene, sort = TRUE)
+ccrcc_freq_c6 <- le_df_c6 %>%
+  filter(NES < 0) %>%
+  count(gene, sort = TRUE) # 0 
 
-# core enriched genes
-c6_res %>% dplyr::select(Description, NES, p.adjust, core_enrichment) %>% head()
+top_genes <- occc_freq_c6 %>%
+  slice_max(n, n = 15) %>%
+  pull(gene)
+
+heatmap_long <- le_df_c6 %>%
+  filter(gene %in% top_genes, NES > 0) %>%
+  dplyr::select(gene, ID, NES) %>%
+  distinct()
+
+ggplot(heatmap_long, aes(x = ID, y = gene, fill = NES)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "red") +
+  labs(fill = "NES") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
 
 ############################################
 # OCCC vs ccRCC c7_msig - immunological pathways/signatures
@@ -706,32 +740,15 @@ gsea_c7 <- GSEA(
 )
 
 head(as.data.frame(gsea_c7))
+cnetplot(gsea_c7, foldChange = gene_list_symbol, showCategory = 5)
+dotplot(gsea_c7, split = ".sign") + facet_grid(.~.sign)
 
 dotplot(gsea_c7, showCategory = 20, color = "NES") + theme_minimal()
+dotplot(gsea_c7, showCategory = 20, color = "NES", split = ".sign") +
+  facet_grid(. ~ .sign) +
+  theme_minimal()
+
 gseaplot2(gsea_c7, geneSetID = 1:5)
-
-# cleaner pathwas
-c7_res <- as.data.frame(gsea_c7) %>%
-  mutate(
-    Direction = ifelse(NES > 0, "Up in OCCC", "Down in OCCC"),
-    Description = gsub("_", " ", Description)
-  )
-
-top_c7 <- c7_res %>%
-  filter(p.adjust < 0.05) %>%
-  arrange(desc(abs(NES))) %>%
-  slice_head(n = 15)
-
-ggplot(top_c7,
-       aes(NES, reorder(Description, NES), fill = Direction)) +
-  geom_col() +
-  geom_vline(xintercept = 0, linetype = 2) +
-  theme_bw() +
-  labs(title = "Top Immunologic Signatures (C7)",
-       y = "", x = "NES")
-
-# core enriched genes
-c7_res %>% dplyr::select(Description, NES, p.adjust, core_enrichment) %>% head()
 
 
 #################
@@ -750,7 +767,18 @@ gsea_c3 <- GSEA(
 head(as.data.frame(gsea_c3))
 
 dotplot(gsea_c3, showCategory = 20, color = "NES") + theme_minimal()
-gseaplot2(gsea_c3, geneSetID = 1:5)
+dotplot(gsea_c3, split = ".sign") + facet_grid(.~.sign)
+dotplot(gsea_c3, showCategory = 20, color = "NES", split = ".sign") +
+  facet_grid(. ~ .sign) +
+  theme_minimal()
+
+# clean
+gsea_c3_clean <- gsea_c3
+gsea_c3_clean@result <- gsea_c3@result %>%
+  dplyr::filter(!grepl("UNKNOWN", Description))
+dotplot(gsea_c3_clean, showCategory = 20, color = "NES") + facet_grid(. ~ .sign)
+
+heatplot(gsea_c3_clean, foldChange = gene_list_symbol, showCategory = 5)
 
 # cleaner pathwas
 c3_res <- as.data.frame(gsea_c3) %>%
@@ -775,16 +803,17 @@ ggplot(top_c3,
 # core enriched genes
 c3_res %>% dplyr::select(Description, NES, p.adjust, core_enrichment) %>% head()
 
+write_xlsx(list(C6_Oncogenic_OCvsRC= as.data.frame(gsea_c6), C7_Immunologic_OCvsRC = as.data.frame(gsea_c7), 
+                C3_TFTs_OCvsRC = as.data.frame(gsea_c3)), "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary/GSEA_C3_C6_C7_OCvsRC.xlsx")
 
-
-write_xlsx(list(C6_Oncogenic_OCvsRC= as.data.frame(gsea_c6), C7_Immunologic_OCvsRC = as.data.frame(gsea_c7), C3_TFTs_OCvsRC = as.data.frame(gsea_c3)),
-  "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary/GSEA_C3_C6_C7_OCvsRC.xlsx")
-
+################################
 ################################
 
 # OCCC vs GTEx normal ovary GSEA
 
 ################################
+################################
+
 all_ovary_genes <- DE_OCvsGTExOV
 all_ovary_genes$SYMBOL <- all_ovary_genes$Geneid
 
@@ -916,28 +945,60 @@ head(as.data.frame(gsea_c6_ovary))
 
 dotplot(gsea_c6_ovary, showCategory = 20, color = "NES") + theme_minimal() 
 gseaplot2(gsea_c6_ovary, geneSetID = 1:5)
-
-# cleaner patwhasy names
-c6_res_ovary <- as.data.frame(gsea_c6_ovary) %>%
-  mutate(
-    Direction = ifelse(NES > 0, "Up in OCCC", "Down in OCCC"),
-    Description = gsub("_", " ", Description))
-
-# top enriched 6 
-top_c6_ovary <- c6_res_ovary %>%
-  filter(p.adjust < 0.05) %>%
-  arrange(desc(abs(NES))) %>%
-  slice_head(n = 15)
-
-ggplot(top_c6_ovary,
-       aes(NES, reorder(Description, NES), fill = Direction)) +
-  geom_col() +
-  geom_vline(xintercept = 0, linetype = 2) +
-  theme_bw() +
-  labs(y = "", x = "NES")
+dotplot(gsea_c6_ovary, split = ".sign") + facet_grid(.~.sign)
 
 # core enriched genes
 c6_res_ovary %>% dplyr::select(Description, NES, p.adjust, core_enrichment) %>% head()
+
+resc6_gsea_ovary <- as.data.frame(gsea_c6_ovary)
+# split by direction
+occc_pathways_c6_ovary <- resc6_gsea_ovary %>%filter(NES > 0, p.adjust < 0.05)
+ccrcc_pathways_c6_ovary <- resc6_gsea_ovary %>%filter(NES < 0, p.adjust < 0.05)
+
+# OCCC leading-edge genes - no visual only exploratory
+le_occc_c6_ovary <- occc_pathways_c6_ovary %>%
+  pull(core_enrichment) %>%
+  strsplit("/") %>%
+  unlist() %>%
+  unique()
+
+# ccRCC leading-edge genes
+le_ccrcc_c6_ovary <- ccrcc_pathways_c6_ovary %>%
+  pull(core_enrichment) %>%
+  strsplit("/") %>%
+  unlist() %>%
+  unique()
+
+# pathways gene table
+le_df_c6_ovary <- resc6_gsea_ovary %>%
+  filter(p.adjust < 0.05) %>%
+  dplyr::select(ID, NES, core_enrichment) %>%
+  separate_rows(core_enrichment, sep = "/") %>%
+  dplyr::rename(gene = core_enrichment)
+# gene frequency
+occc_freq_c6_ovary <- le_df_c6_ovary %>%
+  filter(NES > 0) %>%
+  count(gene, sort = TRUE)
+ccrcc_freq_c6_ovary <- le_df_c6_ovary %>%
+  filter(NES < 0) %>%
+  count(gene, sort = TRUE) # 0 
+
+top_genes_ovary <- occc_freq_c6_ovary %>%
+  slice_max(n, n = 15) %>%
+  pull(gene)
+
+heatmap_long_ovary <- le_df_c6_ovary %>%
+  filter(gene %in% top_genes_ovary, NES > 0) %>%
+  dplyr::select(gene, ID, NES) %>%
+  distinct()
+
+ggplot(heatmap_long_ovary, aes(x = ID, y = gene, fill = NES)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "red") +
+  labs(fill = "NES") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
 
 ############################################
 # OCCC vs Ovary c7_msig - immunological pathways/signatures
@@ -996,25 +1057,10 @@ head(as.data.frame(gsea_c3_ovary))
 dotplot(gsea_c3_ovary, showCategory = 20, color = "NES") + theme_minimal()
 gseaplot2(gsea_c3_ovary, geneSetID = 1:5)
 
-# cleaner pathwas
-c3_res_ovary <- as.data.frame(gsea_c3_ovary) %>%
-  mutate(
-    Direction = ifelse(NES > 0, "Up in OCCC", "Down in OCCC"),
-    Description = gsub("_", " ", Description)
-  )
-
-top_c3_ovary <- c3_res_ovary %>%
-  filter(p.adjust < 0.05) %>%
-  arrange(desc(abs(NES))) %>%
-  slice_head(n = 15)
-
-ggplot(top_c3_ovary,
-       aes(NES, reorder(Description, NES), fill = Direction)) +
-  geom_col() +
-  geom_vline(xintercept = 0, linetype = 2) +
-  theme_bw() +
-  labs(title = "Top Immunologic Signatures (C3)",
-       y = "", x = "NES")
+gsea_c3_ovary_clean <- gsea_c3_ovary
+gsea_c3_ovary_clean@result <- gsea_c3_ovary@result %>%
+  dplyr::filter(!grepl("UNKNOWN", Description))
+dotplot(gsea_c3_ovary_clean, showCategory = 20, color = "NES") + facet_grid(. ~ .sign)
 
 # core enriched genes
 c3_res_ovary %>% dplyr::select(Description, NES, p.adjust, core_enrichment) %>% head()
@@ -1171,7 +1217,7 @@ up_df   <- up_df   %>% arrange(p.adjust) %>% dplyr::slice(1:10)
 down_df <- down_df %>% arrange(p.adjust) %>% dplyr::slice(1:10)
 
 # wrap long labels
-wrap_lab <- function(x, width = 28){
+wrap_lab <- function(x, width = 20){
   vapply(x, function(z) paste(strwrap(z, width = width), collapse = "\n"), character(1))
 }
 
@@ -1226,7 +1272,7 @@ edges <- edges %>%
   filter(kinase %in% top_kinases)
 
 # wrapped labels for pathways only
-edges$pathway <- wrap_lab(edges$pathway, width = 28)
+edges$pathway <- wrap_lab(edges$pathway, width = 20)
 
 # colour
 pathways <- unique(edges$pathway)
@@ -1268,7 +1314,7 @@ circos.trackPlotRegion(
       facing = "clockwise",
       niceFacing = TRUE,
       adj = c(0,0.5),
-      cex = 0.70,
+      cex = 1.5,
       font = 2
     )
   },
