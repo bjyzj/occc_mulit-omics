@@ -142,6 +142,56 @@ dotplot(gsea_reactome, showCategory = 20, color = "NES") + theme_minimal()
 #require(DOSE)
 dotplot(gsea_reactome, showCategory=10, split=".sign") + facet_grid(.~.sign)
 
+
+res_react_gsea <- as.data.frame(gsea_reactome)
+# split by direction
+occc_pathways_react <- res_react_gsea %>%filter(NES > 0, p.adjust < 0.05)
+ccrcc_pathways_react <- res_react_gsea %>%filter(NES < 0, p.adjust < 0.05)
+# pathways gene table
+le_df_react <- res_react_gsea %>%
+  filter(p.adjust < 0.05) %>%
+  dplyr::select(ID, NES, core_enrichment) %>%
+  separate_rows(core_enrichment, sep = "/") %>%
+  dplyr::rename(ENTREZID = core_enrichment)
+head(le_df_react$ENTREZID)
+
+le_df_react <- res_react_gsea %>%
+  filter(p.adjust < 0.05) %>%
+  dplyr::select(ID, Description, NES, core_enrichment) %>%
+  separate_rows(core_enrichment, sep = "/") %>%
+  dplyr::rename(ENTREZID = core_enrichment)
+
+gene_map <- bitr(le_df_react$ENTREZID,
+                 fromType = "ENTREZID",
+                 toType = "SYMBOL",
+                 OrgDb = org.Hs.eg.db)
+
+le_df_react <- le_df_react %>%
+  left_join(gene_map, by = "ENTREZID") %>%
+  filter(!is.na(SYMBOL))
+
+# gene frequency
+occc_freq_react <- le_df_react %>%
+  filter(NES > 0) %>%
+  count(SYMBOL, sort = TRUE)
+
+top_genes <- occc_freq_react %>%
+  slice_max(n, n = 15) %>%
+  pull(SYMBOL) 
+
+heatmap_long <- le_df_react %>%
+  filter(SYMBOL %in% top_genes, NES > 0) %>%
+  dplyr::select(SYMBOL, Description, NES) %>%
+  distinct()
+
+ggplot(heatmap_long, aes(x = Description, y = SYMBOL, fill = NES)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "blue") +
+  labs(fill = "NES", x = "Pathway", y = "Gene") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
 #################
 # msigdb
 hallmark <- data.frame(gs_name = hallmark_gmt$term, gene_symbol = hallmark_gmt$gene)
@@ -225,7 +275,6 @@ dotplot(gsea_c6, showCategory = 20, color = "NES") + theme_minimal()
 dotplot(gsea_c6, split = ".sign") + facet_grid(.~.sign)
 
 cnetplot(gsea_c6, foldChange = gene_list_symbol, showCategory = 5)
-
 
 ############################################
 # OCCC vs ccRCC c7_msig - immunological pathways/signatures
