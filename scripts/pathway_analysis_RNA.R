@@ -23,6 +23,10 @@ c7_msig <- read.gmt("/Users/beyzaerkal/Desktop/internship/internship_env/c7.all.
 c6_msig <- read.gmt("/Users/beyzaerkal/Desktop/internship/internship_env/c6.all.v2026.1.Hs.symbols.gmt") # oncogenic
 c3_msig <- read.gmt("/Users/beyzaerkal/Desktop/internship/internship_env/c3.tft.v2026.1.Hs.symbols.gmt") # TFT
 
+# expression mx
+expr_matrix_occc <- readRDS("/Users/beyzaerkal/Desktop/occc_multi-omics/processed/expression_matrix_occc_all_log2.rds")
+sample_metadata_occc <- readRDS("/Users/beyzaerkal/Desktop/occc_multi-omics/processed/sample_info_OCandRC.rds")
+
 #####################
 # OC vs RC ORA
 ggplot(DE_OCvsGTExOV, aes(x = logFC)) +
@@ -201,8 +205,9 @@ emapplot(gsea_go_simplified, showCategory = 30)
 
 emapplot(pairwise_termsim(gsea_reactome), showCategory=30)
 
-########
+##################
 # msigdb gsea
+##################
 # SYMBOL-based gene list (for Hallmark)
 # symbol duplicated 2
 all_merged_unique <- all_merged %>%
@@ -561,6 +566,7 @@ shared_reactome <- reactome_res %>%
 ###########################
 # gsea vertical col bar plots
 ###########################
+#exploratory
 go_df <- as.data.frame(gsea_go)[, c("ID", "Description", "NES", "p.adjust")]
 go_df$DB <- "GO_BP"
 
@@ -645,6 +651,7 @@ ggplot(top_go,
   )) +
   labs(x = "NES", y = "Pathway", fill = "Enrichment direction")
 
+
 ##########################################
 # OCCC vs ccRCC c6_msig - oncogenic pathway
 ##########################################
@@ -685,7 +692,7 @@ le_occc_c6 <- occc_pathways_c6 %>%
   strsplit("/") %>%
   unlist() %>%
   unique()
-
+###
 # ccRCC leading-edge genes
 le_ccrcc_c6 <- ccrcc_pathways_c6 %>%
   pull(core_enrichment) %>%
@@ -699,7 +706,7 @@ le_df_c6 <- resc6_gsea %>%
   dplyr::select(ID, NES, core_enrichment) %>%
   separate_rows(core_enrichment, sep = "/") %>%
   dplyr::rename(gene = core_enrichment)
-
+###
 # gene frequency
 occc_freq_c6 <- le_df_c6 %>%
   filter(NES > 0) %>%
@@ -723,6 +730,72 @@ ggplot(heatmap_long, aes(x = ID, y = gene, fill = NES)) +
   labs(fill = "NES") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+#######
+colnames(le_df_c6)
+
+mat_occc <- expr_matrix_occc[kras_genes, ]
+gene_var <- apply(mat_occc, 1, var)
+top_n <- 30
+top_genes <- names(sort(gene_var, decreasing = TRUE))[1:top_n]
+
+mat_occc_subset <- mat_occc[top_genes, ]
+annotation_col = sample_metadata_occc
+
+kras_up <- le_df_c6 %>%
+  filter(ID == "KRAS.600.LUNG.BREAST_UP.V1_UP")
+
+kras_dn <- le_df_c6 %>%
+  filter(ID == "KRAS.600.LUNG.BREAST_UP.V1_DN")
+
+kras_up_genes <- kras_up %>% pull(gene) %>% unique()
+kras_dn_genes <- kras_dn %>% pull(gene) %>% unique()
+
+metadata_clean <- sample_metadata_occc %>%
+  dplyr::select(-Sample, -Tissue, -Group, -Status)
+
+make_heatmap <- function(gene_list, expr_matrix, metadata, top_n = 30, title = "") {
+  # subset expression
+  mat <- expr_matrix[gene_list, , drop = FALSE]
+  # remove genes with zero variance 
+  mat <- mat[apply(mat, 1, var) > 0, ]
+  # select top variable genes
+  gene_var <- apply(mat, 1, var)
+  top_genes <- names(sort(gene_var, decreasing = TRUE))[1:min(top_n, length(gene_var))]
+  
+  mat_subset <- mat[top_genes, , drop = FALSE]
+  
+  pheatmap::pheatmap(
+    mat_subset,
+    scale = "row",
+    annotation_col = metadata_clean,     
+    show_colnames = FALSE,
+    clustering_method = "complete",
+    fontsize_row = 8,
+    border_color = NA
+  )
+  
+}
+
+# KRAS activation genes
+make_heatmap(
+  kras_up_genes,
+  expr_matrix_occc,
+  metadata_clean,
+  top_n = 30,
+  title = "KRAS Activation (UP genes)"
+)
+
+# KRAS repression genes
+make_heatmap(
+  kras_dn_genes,
+  expr_matrix_occc,
+  metadata_clean,
+  top_n = 30,
+  title = "KRAS Repression (DN genes)"
+)
+
+
 
 
 ############################################
@@ -864,10 +937,64 @@ dotplot(gsea_go_ovary, showCategory = 20, color = "NES") + theme_minimal()
 dotplot(gsea_mf_ovary, showCategory = 20, color = "NES") + theme_minimal()
 dotplot(gsea_kegg_ovary, showCategory = 20, color = "NES") + theme_minimal()
 dotplot(gsea_reactome_ovary, showCategory = 20, color = "NES") + theme_minimal()
+heatplot(gsea_reactome_ovary, foldChange = gene_list_ovary, showCategory = 5)
 
 # GSEA curves from reactome
 #gseacurve3
 gseaplot2(gsea_reactome_ovary, geneSetID = "R-HSA-373076", title = "Class A/1 (Rhodopsin-like receptors)")
+gseaplot2(gsea_reactome_ovary, geneSetID = "R-HSA-156902", title = "Peptide chain elongation")
+gseaplot2(gsea_reactome_ovary, geneSetID = "R-HSA-9633012", title = "Response of EIF2AK4 (GCN2) to amino acid deficiency")
+gseaplot2(gsea_reactome_ovary, geneSetID = "R-HSA-500792", title = "GPCR ligand binding")
+gseaplot2(gsea_reactome_ovary, geneSetID = "R-HSA-1234174", title = "Cellular response to hypoxia")
+gseaplot2(gsea_reactome_ovary, geneSetID = "R-HSA-201681", title = "TCF dependent signaling in response to WNT")
+
+heatplot(gsea_reactome_ovary_sym, foldChange = gene_list_ovary, showCategory = 5)
+cnetplot(gsea_reactome_ovary_sym, foldChange = gene_list_ovary, showCategory = 5)
+
+
+gsea_reactome_ovary_sym <- setReadable(gsea_reactome_ovary, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
+
+reactome_res <- as.data.frame(gsea_reactome_ovary)
+reactome_res_sym <- as.data.frame(gsea_reactome_ovary_sym)
+
+selected_paths <- reactome_res_sym %>%
+  dplyr::filter(
+    (NES < 0 & grepl("Translation|ribosome|NMD|EIF|SRP", Description, ignore.case = TRUE)) |
+      (NES > 0 & grepl("GPCR|Rhodopsin|receptor|ligand", Description, ignore.case = TRUE))
+  )
+
+gsea_subset <- gsea_reactome_ovary_sym
+gsea_subset@result <- selected_paths
+
+cnetplot(
+  gsea_subset,
+  foldChange = gene_list_ovary,
+  showCategory = 8,
+  node_label = "all"
+)
+##
+translation_paths <- c("Translation", "ribosome", "EIF", "NMD", "SRP")
+gpcr_paths <- c("receptor", "Rhodopsin", "GPCR", "ligand")
+
+reactome_res_sym <- as.data.frame(gsea_reactome_ovary_sym)
+
+selected_paths <- reactome_res_sym %>%
+  dplyr::filter(
+    (NES < 0 & grepl(paste(translation_paths, collapse="|"), Description, ignore.case=TRUE)) |
+      (NES > 0 & grepl(paste(gpcr_paths, collapse="|"), Description, ignore.case=TRUE))
+  ) %>%
+  arrange(p.adjust) %>%
+  slice_head(n = 6)
+
+gsea_subset <- gsea_reactome_ovary_sym
+gsea_subset@result <- selected_paths
+
+cnetplot(
+  gsea_subset,
+  foldChange = gene_list_ovary_symbol,
+  showCategory = 6,
+  node_label = "all"
+)
 
 #########################
 # msigdb gsea ovary
@@ -962,8 +1089,8 @@ le_occc_c6_ovary <- occc_pathways_c6_ovary %>%
   unlist() %>%
   unique()
 
-# ccRCC leading-edge genes
-le_ccrcc_c6_ovary <- ccrcc_pathways_c6_ovary %>%
+# normal ovary leading-edge genes
+le_ovary_c6_ovary <- ccrcc_pathways_c6_ovary %>%
   pull(core_enrichment) %>%
   strsplit("/") %>%
   unlist() %>%
@@ -979,7 +1106,7 @@ le_df_c6_ovary <- resc6_gsea_ovary %>%
 occc_freq_c6_ovary <- le_df_c6_ovary %>%
   filter(NES > 0) %>%
   count(gene, sort = TRUE)
-ccrcc_freq_c6_ovary <- le_df_c6_ovary %>%
+ovary_freq_c6_ovary <- le_df_c6_ovary %>%
   filter(NES < 0) %>%
   count(gene, sort = TRUE) # 0 
 
@@ -998,6 +1125,77 @@ ggplot(heatmap_long_ovary, aes(x = ID, y = gene, fill = NES)) +
   labs(fill = "NES") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+############
+############
+
+# look into the gene expression
+mat_occc2 <- expr_matrix_occc[kras_genes_ovary, ]
+gene_var_ov <- apply(mat_occc2, 1, var)
+top_n <- 30
+top_genes_ov <- names(sort(gene_var_ov, decreasing = TRUE))[1:top_n]
+
+mat_occc_subset_ov <- mat_occc2[top_genes_ov, ]
+annotation_col = sample_metadata_occc
+
+##
+kras_up_ov <- le_df_c6_ovary %>% filter(ID == "KRAS.600_UP.V1_UP")
+kras_dn_ov <- le_df_c6_ovary %>% filter(ID == "KRAS.600_UP.V1_DN")
+kras_up_genes_ov <- kras_up_ov %>% pull(gene) %>% unique()
+kras_dn_genes_ov <- kras_dn_ov %>% pull(gene) %>% unique()
+##
+IL21_up_genes_ov <- le_df_c6_ovary %>% filter(ID == "IL21_UP.V1_UP") %>% pull(gene) %>% unique()
+IL21_dn_genes_ov <- le_df_c6_ovary %>% filter(ID == "IL21_UP.V1_DN") %>% pull(gene) %>% unique()
+
+E2F3_up_genes_ov <- le_df_c6_ovary %>% filter(ID == "E2F3_UP.V1_UP") %>% pull(gene) %>% unique()
+E2F3_dn_genes_ov <- le_df_c6_ovary %>% filter(ID == "E2F3_UP.V1_DN") %>% pull(gene) %>% unique()
+
+metadata_clean <- sample_metadata_occc %>%
+  dplyr::select(-Sample, -Tissue, -Group, -Status)
+
+make_heatmap(
+  E2F3_up_genes_ov,
+  expr_matrix_occc,
+  metadata_clean,
+  top_n = 30,
+  title = "E2F3_UP.V1_UP"
+)
+
+make_heatmap(
+  E2F3_dn_genes_ov,
+  expr_matrix_occc,
+  metadata_clean,
+  top_n = 30,
+  title = "E2F3_UP.V1_DN"
+)
+
+
+library(GSVA)
+
+hallmark_sub <- hallmark %>%
+  dplyr::filter(grepl("E2F_TARGETS|G2M_CHECKPOINT|OXIDATIVE_PHOSPHORYLATION|HYPOXIA", term))
+
+hallmark_list <- split(hallmark_sub$gene, hallmark_sub$term)
+
+expr_matrix_occc_mat <- as.matrix(expr_matrix_occc)
+
+param <- GSVA::ssgseaParam(
+  exprData = expr_matrix_occc_mat,
+  geneSets = hallmark_list,
+  minSize = 10,
+  maxSize = 500,
+  alpha = 0.25,
+  normalize = TRUE
+)
+
+gsva_df <- as.data.frame(t(gsva_scores))
+
+meta_aligned <- sample_metadata_occc
+rownames(meta_aligned) <- meta_aligned$Sample
+meta_aligned <- meta_aligned[rownames(gsva_df), ]
+gsva_df$Group <- meta_aligned$Group
+
 
 
 ############################################
@@ -1140,6 +1338,15 @@ heatplot(gsea_reactome_shared_readable, foldChange = gene_list, showCategory = 5
 cnetplot(gsea_reactome_shared_readable, foldChange = gene_list, showCategory = 10)
 
 ##############################
+
+
+
+
+
+
+
+
+
 
 ###############################
 
