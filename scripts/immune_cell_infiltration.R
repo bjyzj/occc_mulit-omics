@@ -184,9 +184,16 @@ kruskal.test(Score ~ Study, data = df_long %>% filter(CellType == "Tregs"))
 
 pairwise.wilcox.test(df_long$Score, df_long$Study, p.adjust.method = "BH")
 
+kruskal_results <- by(df_long, df_long$CellType, function(sub) {
+  test <- kruskal.test(Score ~ Study, data = sub)
+  c(Chi2 = test$statistic, p = test$p.value)
+})
 
+kruskal_df <- do.call(rbind, kruskal_results)
+kruskal_df <- data.frame(CellType = rownames(kruskal_df), kruskal_df)
 
-
+pairwise <- pairwise.wilcox.test(df_long$Score, df_long$Study, p.adjust.method = "BH")
+pairwise_df <- as.data.frame(as.table(pairwise$p.value))
 
 
 
@@ -274,7 +281,7 @@ results <- data.frame(
 
 results
 
-#write_xlsx(results, "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary/immune_cell_infiltration_results.xlsx")
+writexl::write_xlsx(list(Kruskal = kruskal_df, Pairwise = pairwise_df, OCCC_vs_ccRCC = results), "/Users/beyzaerkal/Desktop/occc_multi-omics/supplementary/immune_profile_stats_results.xlsx")
 
 ##############
 # occc only biology
