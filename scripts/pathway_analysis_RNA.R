@@ -951,51 +951,6 @@ gseaplot2(gsea_reactome_ovary, geneSetID = "R-HSA-201681", title = "TCF dependen
 heatplot(gsea_reactome_ovary_sym, foldChange = gene_list_ovary, showCategory = 5)
 cnetplot(gsea_reactome_ovary_sym, foldChange = gene_list_ovary, showCategory = 5)
 
-
-gsea_reactome_ovary_sym <- setReadable(gsea_reactome_ovary, OrgDb = org.Hs.eg.db, keyType = "ENTREZID")
-
-reactome_res <- as.data.frame(gsea_reactome_ovary)
-reactome_res_sym <- as.data.frame(gsea_reactome_ovary_sym)
-
-selected_paths <- reactome_res_sym %>%
-  dplyr::filter(
-    (NES < 0 & grepl("Translation|ribosome|NMD|EIF|SRP", Description, ignore.case = TRUE)) |
-      (NES > 0 & grepl("GPCR|Rhodopsin|receptor|ligand", Description, ignore.case = TRUE))
-  )
-
-gsea_subset <- gsea_reactome_ovary_sym
-gsea_subset@result <- selected_paths
-
-cnetplot(
-  gsea_subset,
-  foldChange = gene_list_ovary,
-  showCategory = 8,
-  node_label = "all"
-)
-##
-translation_paths <- c("Translation", "ribosome", "EIF", "NMD", "SRP")
-gpcr_paths <- c("receptor", "Rhodopsin", "GPCR", "ligand")
-
-reactome_res_sym <- as.data.frame(gsea_reactome_ovary_sym)
-
-selected_paths <- reactome_res_sym %>%
-  dplyr::filter(
-    (NES < 0 & grepl(paste(translation_paths, collapse="|"), Description, ignore.case=TRUE)) |
-      (NES > 0 & grepl(paste(gpcr_paths, collapse="|"), Description, ignore.case=TRUE))
-  ) %>%
-  arrange(p.adjust) %>%
-  slice_head(n = 6)
-
-gsea_subset <- gsea_reactome_ovary_sym
-gsea_subset@result <- selected_paths
-
-cnetplot(
-  gsea_subset,
-  foldChange = gene_list_ovary_symbol,
-  showCategory = 6,
-  node_label = "all"
-)
-
 #########################
 # msigdb gsea ovary
 #########################
